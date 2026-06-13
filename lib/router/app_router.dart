@@ -34,6 +34,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     redirect: (BuildContext context, GoRouterState state) {
       final authAsync = ref.read(authStateProvider);
+
+      // Firebase still restoring persisted session — don't redirect yet
+      if (authAsync.isLoading) return null;
+
       final bool isLoggedIn = authAsync.valueOrNull != null;
       final String loc = state.matchedLocation;
       final bool isAuthPage = loc == '/login' || loc == '/register';
