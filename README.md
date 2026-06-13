@@ -2,6 +2,16 @@
 
 Aplicación móvil para gestión de tareas universitaria desarrollada con Flutter. La versión 2.0 incorpora funcionalidades de inteligencia artificial completamente on-device: captura de tareas por voz y escaneo de tareas desde códigos QR.
 
+## 📱 Capturas de pantalla
+
+| Lista de tareas | Crear tarea |
+|:---:|:---:|
+| ![Home](screenshots/HomeScreen.jpg) | ![Form](screenshots/TaskFormScreen.jpg) |
+
+| Estadísticas | Configuración |
+|:---:|:---:|
+| ![Stats](screenshots/StatisticsScreen.jpg) | ![Settings](screenshots/SettingsScreen.jpg) |
+
 ## Stack técnico
 
 | Tecnología | Versión | Uso |
