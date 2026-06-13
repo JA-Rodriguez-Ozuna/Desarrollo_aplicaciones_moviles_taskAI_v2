@@ -9,6 +9,11 @@ claude_context/
 mcp.json
 **/.claude/**
 **/CLAUDE.md
+# ===== FIREBASE - NO SUBIR =====
+google-services.json
+GoogleService-Info.plist
+**/google-services.json
+lib/firebase_options.dart
 # ========================================
 
 # Miscellaneous
