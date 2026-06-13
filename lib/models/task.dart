@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
 enum TaskCategory { trabajo, personal, estudio, urgente }
@@ -13,6 +14,7 @@ class Task {
   final DateTime dueDate;
   final bool isCompleted;
   final DateTime createdAt;
+  final String userId;
 
   const Task({
     required this.id,
@@ -23,6 +25,7 @@ class Task {
     required this.dueDate,
     required this.isCompleted,
     required this.createdAt,
+    this.userId = '',
   });
 
   factory Task.create({
@@ -31,6 +34,7 @@ class Task {
     required TaskCategory category,
     required TaskPriority priority,
     required DateTime dueDate,
+    String userId = '',
   }) {
     return Task(
       id: const Uuid().v4(),
@@ -41,6 +45,7 @@ class Task {
       dueDate: dueDate,
       isCompleted: false,
       createdAt: DateTime.now(),
+      userId: userId,
     );
   }
 
@@ -53,6 +58,7 @@ class Task {
     DateTime? dueDate,
     bool? isCompleted,
     DateTime? createdAt,
+    String? userId,
   }) {
     return Task(
       id: id ?? this.id,
@@ -63,6 +69,7 @@ class Task {
       dueDate: dueDate ?? this.dueDate,
       isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
+      userId: userId ?? this.userId,
     );
   }
 
@@ -76,6 +83,7 @@ class Task {
       'dueDate': dueDate.toIso8601String(),
       'isCompleted': isCompleted,
       'createdAt': createdAt.toIso8601String(),
+      'userId': userId,
     };
   }
 
@@ -93,6 +101,39 @@ class Task {
       dueDate: DateTime.parse(map['dueDate'] as String),
       isCompleted: map['isCompleted'] as bool,
       createdAt: DateTime.parse(map['createdAt'] as String),
+      userId: map['userId'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'description': description,
+      'category': category.name,
+      'priority': priority.name,
+      'dueDate': Timestamp.fromDate(dueDate),
+      'isCompleted': isCompleted,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'userId': userId,
+    };
+  }
+
+  factory Task.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final Map<String, dynamic> data = doc.data()!;
+    return Task(
+      id: doc.id,
+      title: data['title'] as String,
+      description: data['description'] as String,
+      category: TaskCategory.values.firstWhere(
+        (e) => e.name == data['category'],
+      ),
+      priority: TaskPriority.values.firstWhere(
+        (e) => e.name == data['priority'],
+      ),
+      dueDate: (data['dueDate'] as Timestamp).toDate(),
+      isCompleted: data['isCompleted'] as bool,
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      userId: data['userId'] as String? ?? '',
     );
   }
 }
