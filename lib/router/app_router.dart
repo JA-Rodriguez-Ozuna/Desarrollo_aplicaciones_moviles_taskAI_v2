@@ -16,7 +16,7 @@ class _RouterNotifier extends ChangeNotifier {
   late final ProviderSubscription<AsyncValue<dynamic>> _sub;
 
   _RouterNotifier(this._ref) {
-    _sub = _ref.listen(authStateProvider, (_, __) => notifyListeners());
+    _sub = _ref.listen(authStateProvider, (_, _) => notifyListeners());
   }
 
   @override
@@ -47,19 +47,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: <RouteBase>[
       GoRoute(
         path: '/',
-        builder: (_, __) => const HomeScreen(),
+        builder: (_, _) => const HomeScreen(),
       ),
       GoRoute(
         path: '/login',
-        builder: (_, __) => const LoginScreen(),
+        builder: (_, _) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
-        builder: (_, __) => const RegisterScreen(),
+        builder: (_, _) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/task/new',
-        builder: (_, __) => const TaskFormScreen(),
+        builder: (_, _) => const TaskFormScreen(),
       ),
       GoRoute(
         path: '/task/edit/:id',
@@ -68,19 +68,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/statistics',
-        builder: (_, __) => const StatisticsScreen(),
+        builder: (_, _) => const StatisticsScreen(),
       ),
       GoRoute(
         path: '/settings',
-        builder: (_, __) => const SettingsScreen(),
+        builder: (_, _) => const SettingsScreen(),
       ),
       GoRoute(
         path: '/voice',
-        builder: (_, __) => const VoiceScreen(),
+        builder: (_, _) => const VoiceScreen(),
       ),
       GoRoute(
         path: '/qr-scan',
-        builder: (_, __) => const QRScanScreen(),
+        builder: (_, _) => const QRScanScreen(),
       ),
     ],
   );

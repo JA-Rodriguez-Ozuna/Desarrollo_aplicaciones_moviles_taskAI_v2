@@ -9,13 +9,7 @@ class TaskRepository {
   final HiveService _hive;
   final SyncService _sync;
 
-  TaskRepository({
-    required FirestoreService firestore,
-    required HiveService hive,
-    required SyncService sync,
-  })  : _firestore = firestore,
-        _hive = hive,
-        _sync = sync;
+  TaskRepository(this._firestore, this._hive, this._sync);
 
   Stream<List<Task>> watchTasks(String userId) =>
       _firestore.getTasks(userId);
@@ -62,7 +56,7 @@ final _syncServiceProvider = Provider<SyncService>((ref) => SyncService(
     ));
 
 final taskRepositoryProvider = Provider<TaskRepository>((ref) => TaskRepository(
-      firestore: ref.read(_firestoreServiceProvider),
-      hive: ref.read(_hiveServiceProvider),
-      sync: ref.read(_syncServiceProvider),
+      ref.read(_firestoreServiceProvider),
+      ref.read(_hiveServiceProvider),
+      ref.read(_syncServiceProvider),
     ));
