@@ -15,25 +15,25 @@ class TaskRepository {
       _firestore.getTasks(userId);
 
   Future<void> addTask(Task task) async {
-    if (await _sync.isOnline()) {
+    try {
       await _firestore.addTask(task);
-    } else {
+    } catch (_) {
       await _hive.saveTask(task);
     }
   }
 
   Future<void> updateTask(Task task) async {
-    if (await _sync.isOnline()) {
+    try {
       await _firestore.updateTask(task);
-    } else {
+    } catch (_) {
       await _hive.saveTask(task);
     }
   }
 
   Future<void> deleteTask(String taskId, String userId) async {
-    if (await _sync.isOnline()) {
+    try {
       await _firestore.deleteTask(taskId, userId);
-    } else {
+    } catch (_) {
       await _hive.deleteTask(taskId);
     }
   }

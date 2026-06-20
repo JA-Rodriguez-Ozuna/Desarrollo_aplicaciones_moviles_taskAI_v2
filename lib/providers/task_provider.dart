@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task.dart';
 import '../repositories/task_repository.dart';
@@ -77,6 +78,9 @@ class TaskNotifier extends StateNotifier<TaskState> {
     if (_userId.isNotEmpty) {
       _subscription = _repository.watchTasks(_userId).listen(
         (tasks) => state = state.copyWith(tasks: tasks),
+        onError: (Object e, StackTrace st) {
+          debugPrint('[TaskNotifier] stream error: $e');
+        },
       );
     }
   }

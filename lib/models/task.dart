@@ -130,7 +130,9 @@ class Task {
       priority: TaskPriority.values.firstWhere(
         (e) => e.name == data['priority'],
       ),
-      dueDate: (data['dueDate'] as Timestamp).toDate(),
+      dueDate: data['dueDate'] != null
+          ? (data['dueDate'] as Timestamp).toDate()
+          : (data['createdAt'] as Timestamp).toDate(),
       isCompleted: data['isCompleted'] as bool,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       userId: data['userId'] as String? ?? '',
