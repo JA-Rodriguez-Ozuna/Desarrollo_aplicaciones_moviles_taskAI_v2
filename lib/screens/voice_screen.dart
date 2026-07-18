@@ -142,13 +142,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final ColorScheme colors = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Captura por Voz'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Captura por Voz')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
@@ -181,7 +175,12 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   child: child,
                 );
               },
-              child: GestureDetector(
+              child: Semantics(
+                button: true,
+                label: _isListening
+                    ? 'Detener captura por voz'
+                    : 'Iniciar captura por voz',
+                child: GestureDetector(
                 onTap: _speechAvailable
                     ? (_isListening ? _stopListening : _startListening)
                     : null,
@@ -207,6 +206,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                         ? colors.onError
                         : colors.onPrimary,
                   ),
+                ),
                 ),
               ),
             ),

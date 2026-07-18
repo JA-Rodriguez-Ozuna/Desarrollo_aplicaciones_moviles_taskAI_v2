@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../widgets/stats_card.dart';
@@ -28,13 +27,7 @@ class StatisticsScreen extends ConsumerWidget {
     };
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Estadísticas'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Estadísticas')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
