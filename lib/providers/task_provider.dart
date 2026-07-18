@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,12 +34,14 @@ class TaskState {
   final TaskFilter filter;
   final bool isLoading;
   final String? errorMessage;
+  final String? writeError;
 
   const TaskState({
     required this.tasks,
     required this.filter,
     this.isLoading = false,
     this.errorMessage,
+    this.writeError,
   });
 
   TaskState copyWith({
@@ -47,12 +50,15 @@ class TaskState {
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
+    String? writeError,
+    bool clearWriteError = false,
   }) {
     return TaskState(
       tasks: tasks ?? this.tasks,
       filter: filter ?? this.filter,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      writeError: clearWriteError ? null : (writeError ?? this.writeError),
     );
   }
 
@@ -118,19 +124,32 @@ class TaskNotifier extends StateNotifier<TaskState> {
 
   void retry() => _subscribe();
 
-  Future<void> addTask(Task task) =>
-      _repository.addTask(task.copyWith(userId: _userId));
-
-  Future<void> updateTask(Task task) {
-    final Task withUser =
-        task.userId.isEmpty ? task.copyWith(userId: _userId) : task;
-    return _repository.updateTask(withUser);
+  Future<void> addTask(Task task) async {
+    try {
+      await _repository.addTask(task.copyWith(userId: _userId));
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
   }
 
-  Future<void> deleteTask(String id) {
+  Future<void> updateTask(Task task) async {
+    final Task withUser =
+        task.userId.isEmpty ? task.copyWith(userId: _userId) : task;
+    try {
+      await _repository.updateTask(withUser);
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
+  }
+
+  Future<void> deleteTask(String id) async {
     final Iterable<Task> matches = state.tasks.where((Task t) => t.id == id);
     _lastDeleted = matches.isNotEmpty ? matches.first : null;
-    return _repository.deleteTask(id, _userId);
+    try {
+      await _repository.deleteTask(id, _userId);
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
   }
 
   Future<void> undoDelete() async {
@@ -140,12 +159,12 @@ class TaskNotifier extends StateNotifier<TaskState> {
     await addTask(task);
   }
 
-  Future<void> toggleComplete(String id) {
+  Future<void> toggleComplete(String id) async {
     final Task task = state.tasks.firstWhere((t) => t.id == id);
-    return _repository.updateTask(
-      task.copyWith(isCompleted: !task.isCompleted),
-    );
+    await updateTask(task.copyWith(isCompleted: !task.isCompleted));
   }
+
+  void clearWriteError() => state = state.copyWith(clearWriteError: true);
 
   void setFilter(TaskFilter filter) => state = state.copyWith(filter: filter);
 
@@ -160,9 +179,10 @@ class TaskNotifier extends StateNotifier<TaskState> {
 
 final StateNotifierProvider<TaskNotifier, TaskState> taskProvider =
     StateNotifierProvider<TaskNotifier, TaskState>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final String userId = authState.valueOrNull?.uid ?? '';
-  return TaskNotifier(ref.read(taskRepositoryProvider), userId);
+  final String? userId = ref.watch(
+    authStateProvider.select((AsyncValue<User?> state) => state.value?.uid),
+  );
+  return TaskNotifier(ref.read(taskRepositoryProvider), userId ?? '');
 });
 
 const String _themeModePrefsKey = 'theme_mode';

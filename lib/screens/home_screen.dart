@@ -13,6 +13,15 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<TaskState>(taskProvider, (TaskState? previous, TaskState next) {
+      if (next.writeError != null && next.writeError != previous?.writeError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.writeError!)),
+        );
+        ref.read(taskProvider.notifier).clearWriteError();
+      }
+    });
+
     final TaskState taskState = ref.watch(taskProvider);
     final List<Task> filteredTasks = taskState.filteredTasks;
     final int totalPending =
