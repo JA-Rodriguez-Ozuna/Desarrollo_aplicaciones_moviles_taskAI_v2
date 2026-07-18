@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
 import '../repositories/task_repository.dart';
 import 'auth_provider.dart';
@@ -30,13 +31,28 @@ class TaskFilter {
 class TaskState {
   final List<Task> tasks;
   final TaskFilter filter;
+  final bool isLoading;
+  final String? errorMessage;
 
-  const TaskState({required this.tasks, required this.filter});
+  const TaskState({
+    required this.tasks,
+    required this.filter,
+    this.isLoading = false,
+    this.errorMessage,
+  });
 
-  TaskState copyWith({List<Task>? tasks, TaskFilter? filter}) {
+  TaskState copyWith({
+    List<Task>? tasks,
+    TaskFilter? filter,
+    bool? isLoading,
+    String? errorMessage,
+    bool clearError = false,
+  }) {
     return TaskState(
       tasks: tasks ?? this.tasks,
       filter: filter ?? this.filter,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 
@@ -72,18 +88,35 @@ class TaskNotifier extends StateNotifier<TaskState> {
   final TaskRepository _repository;
   final String _userId;
   StreamSubscription<List<Task>>? _subscription;
+  Task? _lastDeleted;
 
   TaskNotifier(this._repository, this._userId)
-      : super(const TaskState(tasks: [], filter: TaskFilter())) {
-    if (_userId.isNotEmpty) {
-      _subscription = _repository.watchTasks(_userId).listen(
-        (tasks) => state = state.copyWith(tasks: tasks),
-        onError: (Object e, StackTrace st) {
-          debugPrint('[TaskNotifier] stream error: $e');
-        },
-      );
-    }
+      : super(TaskState(
+          tasks: const [],
+          filter: const TaskFilter(),
+          isLoading: _userId.isNotEmpty,
+        )) {
+    _subscribe();
   }
+
+  void _subscribe() {
+    _subscription?.cancel();
+    if (_userId.isEmpty) return;
+    state = state.copyWith(isLoading: true, clearError: true);
+    _subscription = _repository.watchTasks(_userId).listen(
+      (tasks) =>
+          state = state.copyWith(tasks: tasks, isLoading: false, clearError: true),
+      onError: (Object e, StackTrace st) {
+        debugPrint('[TaskNotifier] stream error: $e');
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'No se pudieron cargar las tareas',
+        );
+      },
+    );
+  }
+
+  void retry() => _subscribe();
 
   Future<void> addTask(Task task) =>
       _repository.addTask(task.copyWith(userId: _userId));
@@ -94,8 +127,18 @@ class TaskNotifier extends StateNotifier<TaskState> {
     return _repository.updateTask(withUser);
   }
 
-  Future<void> deleteTask(String id) =>
-      _repository.deleteTask(id, _userId);
+  Future<void> deleteTask(String id) {
+    final Iterable<Task> matches = state.tasks.where((Task t) => t.id == id);
+    _lastDeleted = matches.isNotEmpty ? matches.first : null;
+    return _repository.deleteTask(id, _userId);
+  }
+
+  Future<void> undoDelete() async {
+    final Task? task = _lastDeleted;
+    if (task == null) return;
+    _lastDeleted = null;
+    await addTask(task);
+  }
 
   Future<void> toggleComplete(String id) {
     final Task task = state.tasks.firstWhere((t) => t.id == id);
@@ -122,10 +165,28 @@ final StateNotifierProvider<TaskNotifier, TaskState> taskProvider =
   return TaskNotifier(ref.read(taskRepositoryProvider), userId);
 });
 
-class ThemeNotifier extends StateNotifier<bool> {
-  ThemeNotifier() : super(false);
-  void toggleTheme() => state = !state;
+const String _themeModePrefsKey = 'theme_mode';
+
+class ThemeNotifier extends StateNotifier<ThemeMode> {
+  ThemeNotifier() : super(ThemeMode.system) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? stored = prefs.getString(_themeModePrefsKey);
+    state = ThemeMode.values.firstWhere(
+      (ThemeMode m) => m.name == stored,
+      orElse: () => ThemeMode.system,
+    );
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModePrefsKey, mode.name);
+  }
 }
 
-final StateNotifierProvider<ThemeNotifier, bool> themeProvider =
-    StateNotifierProvider<ThemeNotifier, bool>((_) => ThemeNotifier());
+final StateNotifierProvider<ThemeNotifier, ThemeMode> themeProvider =
+    StateNotifierProvider<ThemeNotifier, ThemeMode>((_) => ThemeNotifier());

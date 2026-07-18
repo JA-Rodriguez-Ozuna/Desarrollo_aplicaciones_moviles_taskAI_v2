@@ -153,6 +153,7 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
         appBar: AppBar(
           title: const Text('Error'),
           leading: IconButton(
+            tooltip: 'Volver al inicio',
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go('/'),
           ),
@@ -181,10 +182,33 @@ class _TaskFormScreenState extends ConsumerState<TaskFormScreen> {
     final ThemeData theme = Theme.of(context);
     final DateFormat dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
+    final Widget titleWidget = Text(_isEditing ? 'Editar tarea' : 'Nueva tarea');
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Editar tarea' : 'Nueva tarea'),
+        title: _isEditing
+            ? Hero(
+                tag: 'task-${widget.taskId}',
+                flightShuttleBuilder: (
+                  BuildContext flightContext,
+                  Animation<double> animation,
+                  HeroFlightDirection direction,
+                  BuildContext fromContext,
+                  BuildContext toContext,
+                ) =>
+                    Material(
+                  type: MaterialType.transparency,
+                  child: DefaultTextStyle(
+                    style: theme.appBarTheme.titleTextStyle ??
+                        theme.textTheme.titleLarge!,
+                    child: titleWidget,
+                  ),
+                ),
+                child: Material(type: MaterialType.transparency, child: titleWidget),
+              )
+            : titleWidget,
         leading: IconButton(
+          tooltip: 'Volver al inicio',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),

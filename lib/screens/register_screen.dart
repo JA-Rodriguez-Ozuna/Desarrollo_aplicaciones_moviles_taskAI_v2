@@ -49,6 +49,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
+          tooltip: 'Volver a inicio de sesión',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/login'),
         ),
@@ -102,6 +103,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       helperText: 'Mínimo 6 caracteres',
                       suffixIcon: IconButton(
+                        tooltip: _obscure
+                            ? 'Mostrar contraseña'
+                            : 'Ocultar contraseña',
                         icon: Icon(
                           _obscure ? Icons.visibility_off : Icons.visibility,
                         ),
