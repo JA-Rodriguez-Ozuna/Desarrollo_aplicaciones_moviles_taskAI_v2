@@ -43,7 +43,7 @@ class HomeScreen extends ConsumerWidget {
     } else {
       contentKey = 'list';
       content = RefreshIndicator(
-        onRefresh: () async => ref.read(taskProvider.notifier).retry(),
+        onRefresh: () => ref.read(taskProvider.notifier).retry(),
         child: _AnimatedTaskList(
           tasks: filteredTasks,
           onDismissed: (Task task) {

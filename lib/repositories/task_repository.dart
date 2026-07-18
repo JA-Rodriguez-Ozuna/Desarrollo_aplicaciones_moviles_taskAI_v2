@@ -37,6 +37,18 @@ class TaskRepository {
     }
   }
 
+  /// Single server round-trip for pull-to-refresh — does not touch the
+  /// live `watchTasks()` listener, so it never replays Firestore's local
+  /// cache the way tearing down and recreating that listener would.
+  Future<List<Task>> fetchTasksOnce(String userId) async {
+    try {
+      return await _firestore.fetchTasksOnce(userId);
+    } catch (e) {
+      debugPrint('[TaskRepository] fetchTasksOnce falling back to Hive cache: $e');
+      return _hive.getTasks();
+    }
+  }
+
   Future<void> addTask(Task task) async {
     try {
       await _firestore.addTask(task);

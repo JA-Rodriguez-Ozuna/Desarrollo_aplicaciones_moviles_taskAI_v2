@@ -18,6 +18,16 @@ class FirestoreService {
         );
   }
 
+  /// One-shot fetch straight from the server, bypassing the local cache.
+  /// Used for pull-to-refresh so it doesn't replay a stale cached
+  /// snapshot the way a freshly (re)created `.snapshots()` listener does.
+  Future<List<Task>> fetchTasksOnce(String userId) async {
+    final QuerySnapshot<Map<String, dynamic>> snap = await _tasksRef(userId)
+        .orderBy('createdAt', descending: true)
+        .get(const GetOptions(source: Source.server));
+    return snap.docs.map((doc) => Task.fromFirestore(doc)).toList();
+  }
+
   Future<void> addTask(Task task) =>
       _tasksRef(task.userId).doc(task.id).set(task.toFirestore());
 

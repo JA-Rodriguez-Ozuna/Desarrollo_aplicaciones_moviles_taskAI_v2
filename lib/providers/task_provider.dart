@@ -122,7 +122,28 @@ class TaskNotifier extends StateNotifier<TaskState> {
     );
   }
 
-  void retry() => _subscribe();
+  /// Pull-to-refresh / "Reintentar" entry point. If there's already a
+  /// live Firestore listener, do a one-shot server fetch instead of
+  /// tearing it down — recreating the stream would replay Firestore's
+  /// local cache first and flash stale "ghost" data before the real
+  /// server snapshot arrives. Only resubscribe when there's genuinely
+  /// no active listener (first load or after an error).
+  Future<void> retry() {
+    if (_subscription != null) return _refreshOnce();
+    _subscribe();
+    return Future<void>.value();
+  }
+
+  Future<void> _refreshOnce() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final List<Task> tasks = await _repository.fetchTasksOnce(_userId);
+      state = state.copyWith(tasks: tasks, isLoading: false, clearError: true);
+    } catch (e) {
+      debugPrint('[TaskNotifier] refresh error: $e');
+      state = state.copyWith(isLoading: false);
+    }
+  }
 
   Future<void> addTask(Task task) async {
     try {
