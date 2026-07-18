@@ -25,14 +25,14 @@ class TaskAIApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bool isDarkMode = ref.watch(themeProvider);
+    final ThemeMode themeMode = ref.watch(themeProvider);
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
       title: 'TaskAI',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
