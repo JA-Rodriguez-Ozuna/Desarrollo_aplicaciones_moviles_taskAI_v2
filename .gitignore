@@ -13,7 +13,7 @@ mcp.json
 google-services.json
 GoogleService-Info.plist
 **/google-services.json
-lib/firebase_options.dart
+# lib/firebase_options.dart (placeholder subido para CI)
 # ========================================
 
 # Miscellaneous
