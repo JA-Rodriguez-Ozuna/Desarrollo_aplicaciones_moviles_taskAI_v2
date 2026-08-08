@@ -13,7 +13,7 @@ mcp.json
 google-services.json
 GoogleService-Info.plist
 **/google-services.json
-lib/firebase_options.dart
+# lib/firebase_options.dart (placeholder subido para CI)
 # ========================================
 
 # Miscellaneous
@@ -66,3 +66,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore / signing
+*.keystore
+*.jks
+key.properties
+android/key.properties
+android/app/key.properties

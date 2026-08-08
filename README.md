@@ -1,5 +1,7 @@
 # TaskAI v2.0 — Gestión de Tareas con IA On-Device
 
+![CI](https://github.com/JA-Rodriguez-Ozuna/Desarrollo_aplicaciones_moviles_taskAI_v2/actions/workflows/ci.yml/badge.svg)
+
 Aplicación móvil para gestión de tareas universitaria desarrollada con Flutter. La versión 2.0 incorpora funcionalidades de inteligencia artificial completamente on-device: captura de tareas por voz y escaneo de tareas desde códigos QR.
 
 ## 📱 Capturas de pantalla
