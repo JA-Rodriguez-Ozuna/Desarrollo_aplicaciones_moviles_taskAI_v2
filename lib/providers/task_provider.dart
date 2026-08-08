@@ -1,7 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
 import '../repositories/task_repository.dart';
 import 'auth_provider.dart';
@@ -30,13 +32,33 @@ class TaskFilter {
 class TaskState {
   final List<Task> tasks;
   final TaskFilter filter;
+  final bool isLoading;
+  final String? errorMessage;
+  final String? writeError;
 
-  const TaskState({required this.tasks, required this.filter});
+  const TaskState({
+    required this.tasks,
+    required this.filter,
+    this.isLoading = false,
+    this.errorMessage,
+    this.writeError,
+  });
 
-  TaskState copyWith({List<Task>? tasks, TaskFilter? filter}) {
+  TaskState copyWith({
+    List<Task>? tasks,
+    TaskFilter? filter,
+    bool? isLoading,
+    String? errorMessage,
+    bool clearError = false,
+    String? writeError,
+    bool clearWriteError = false,
+  }) {
     return TaskState(
       tasks: tasks ?? this.tasks,
       filter: filter ?? this.filter,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      writeError: clearWriteError ? null : (writeError ?? this.writeError),
     );
   }
 
@@ -72,37 +94,98 @@ class TaskNotifier extends StateNotifier<TaskState> {
   final TaskRepository _repository;
   final String _userId;
   StreamSubscription<List<Task>>? _subscription;
+  Task? _lastDeleted;
 
   TaskNotifier(this._repository, this._userId)
-      : super(const TaskState(tasks: [], filter: TaskFilter())) {
-    if (_userId.isNotEmpty) {
-      _subscription = _repository.watchTasks(_userId).listen(
-        (tasks) => state = state.copyWith(tasks: tasks),
-        onError: (Object e, StackTrace st) {
-          debugPrint('[TaskNotifier] stream error: $e');
-        },
-      );
+      : super(TaskState(
+          tasks: const [],
+          filter: const TaskFilter(),
+          isLoading: _userId.isNotEmpty,
+        )) {
+    _subscribe();
+  }
+
+  void _subscribe() {
+    _subscription?.cancel();
+    if (_userId.isEmpty) return;
+    state = state.copyWith(isLoading: true, clearError: true);
+    _subscription = _repository.watchTasks(_userId).listen(
+      (tasks) =>
+          state = state.copyWith(tasks: tasks, isLoading: false, clearError: true),
+      onError: (Object e, StackTrace st) {
+        debugPrint('[TaskNotifier] stream error: $e');
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'No se pudieron cargar las tareas',
+        );
+      },
+    );
+  }
+
+  /// Pull-to-refresh / "Reintentar" entry point. If there's already a
+  /// live Firestore listener, do a one-shot server fetch instead of
+  /// tearing it down — recreating the stream would replay Firestore's
+  /// local cache first and flash stale "ghost" data before the real
+  /// server snapshot arrives. Only resubscribe when there's genuinely
+  /// no active listener (first load or after an error).
+  Future<void> retry() {
+    if (_subscription != null) return _refreshOnce();
+    _subscribe();
+    return Future<void>.value();
+  }
+
+  Future<void> _refreshOnce() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final List<Task> tasks = await _repository.fetchTasksOnce(_userId);
+      state = state.copyWith(tasks: tasks, isLoading: false, clearError: true);
+    } catch (e) {
+      debugPrint('[TaskNotifier] refresh error: $e');
+      state = state.copyWith(isLoading: false);
     }
   }
 
-  Future<void> addTask(Task task) =>
-      _repository.addTask(task.copyWith(userId: _userId));
+  Future<void> addTask(Task task) async {
+    try {
+      await _repository.addTask(task.copyWith(userId: _userId));
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
+  }
 
-  Future<void> updateTask(Task task) {
+  Future<void> updateTask(Task task) async {
     final Task withUser =
         task.userId.isEmpty ? task.copyWith(userId: _userId) : task;
-    return _repository.updateTask(withUser);
+    try {
+      await _repository.updateTask(withUser);
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
   }
 
-  Future<void> deleteTask(String id) =>
-      _repository.deleteTask(id, _userId);
+  Future<void> deleteTask(String id) async {
+    final Iterable<Task> matches = state.tasks.where((Task t) => t.id == id);
+    _lastDeleted = matches.isNotEmpty ? matches.first : null;
+    try {
+      await _repository.deleteTask(id, _userId);
+    } on TaskRepositoryException catch (e) {
+      state = state.copyWith(writeError: e.message);
+    }
+  }
 
-  Future<void> toggleComplete(String id) {
+  Future<void> undoDelete() async {
+    final Task? task = _lastDeleted;
+    if (task == null) return;
+    _lastDeleted = null;
+    await addTask(task);
+  }
+
+  Future<void> toggleComplete(String id) async {
     final Task task = state.tasks.firstWhere((t) => t.id == id);
-    return _repository.updateTask(
-      task.copyWith(isCompleted: !task.isCompleted),
-    );
+    await updateTask(task.copyWith(isCompleted: !task.isCompleted));
   }
+
+  void clearWriteError() => state = state.copyWith(clearWriteError: true);
 
   void setFilter(TaskFilter filter) => state = state.copyWith(filter: filter);
 
@@ -117,15 +200,34 @@ class TaskNotifier extends StateNotifier<TaskState> {
 
 final StateNotifierProvider<TaskNotifier, TaskState> taskProvider =
     StateNotifierProvider<TaskNotifier, TaskState>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final String userId = authState.valueOrNull?.uid ?? '';
-  return TaskNotifier(ref.read(taskRepositoryProvider), userId);
+  final String? userId = ref.watch(
+    authStateProvider.select((AsyncValue<User?> state) => state.value?.uid),
+  );
+  return TaskNotifier(ref.read(taskRepositoryProvider), userId ?? '');
 });
 
-class ThemeNotifier extends StateNotifier<bool> {
-  ThemeNotifier() : super(false);
-  void toggleTheme() => state = !state;
+const String _themeModePrefsKey = 'theme_mode';
+
+class ThemeNotifier extends StateNotifier<ThemeMode> {
+  ThemeNotifier() : super(ThemeMode.system) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? stored = prefs.getString(_themeModePrefsKey);
+    state = ThemeMode.values.firstWhere(
+      (ThemeMode m) => m.name == stored,
+      orElse: () => ThemeMode.system,
+    );
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModePrefsKey, mode.name);
+  }
 }
 
-final StateNotifierProvider<ThemeNotifier, bool> themeProvider =
-    StateNotifierProvider<ThemeNotifier, bool>((_) => ThemeNotifier());
+final StateNotifierProvider<ThemeNotifier, ThemeMode> themeProvider =
+    StateNotifierProvider<ThemeNotifier, ThemeMode>((_) => ThemeNotifier());

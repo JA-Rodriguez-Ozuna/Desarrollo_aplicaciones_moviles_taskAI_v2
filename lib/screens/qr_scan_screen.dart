@@ -199,7 +199,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (BuildContext ctx) => _TaskPreviewSheet(
         title: title,
@@ -263,6 +263,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
         foregroundColor: Colors.white,
         title: const Text('Escanear QR'),
         leading: IconButton(
+          tooltip: 'Volver al inicio',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),

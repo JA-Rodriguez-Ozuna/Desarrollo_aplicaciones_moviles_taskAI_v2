@@ -27,7 +27,12 @@ Aplicación móvil para gestión de tareas universitaria desarrollada con Flutte
 | camera | 0.11.x | Acceso a cámara en tiempo real |
 | flutter_secure_storage | 9.x | Almacenamiento seguro de metadatos |
 | permission_handler | 11.x | Gestión de permisos en runtime |
-| Material Design 3 | — | Sistema de diseño |
+| google_fonts | 6.x | Tipografía Poppins |
+| flutter_animate | 4.x | Animaciones declarativas |
+| shimmer | 3.x | Placeholders de carga |
+| shared_preferences | 2.x | Persistencia de preferencias locales (tema, onboarding) |
+| flutter_native_splash | 2.x | Splash screen nativo |
+| Material Design 3 | — | Sistema de diseño (seed color `#6B5AED`, tipografía Poppins) |
 
 ## Requisitos previos
 
@@ -111,6 +116,17 @@ Escaneo de tareas desde códigos QR on-device:
 - Manejo de permiso de cámara con diálogo para ir a Configuración
 - Manejo robusto de QR con JSON inválido o campos faltantes
 
+### v3.1 — Rediseño Material 3
+
+- **Branding**: seed color `#6B5AED`, tipografía Poppins (Google Fonts) y splash screen nativo generado con `flutter_native_splash`
+- **OnboardingScreen** (`/onboarding`): 4 páginas introductorias con `PageView`, dots indicator y persistencia del flag `onboarding_completed` en `shared_preferences`; el router la muestra una sola vez tras el primer login
+- **Navegación**: `NavigationBar` de Material 3 con 4 destinos (Inicio, Estadísticas, Voz, Perfil) implementado con `StatefulShellRoute.indexedStack` de go_router; transiciones de página con `CustomTransitionPage` (fade, 300ms)
+- **Apariencia**: selector Sistema/Claro/Oscuro en Configuración (antes era un toggle binario)
+- **Estados de carga**: shimmer placeholders mientras se sincroniza Firestore, estado de error con reintento y `RefreshIndicator`
+- **Animaciones**: `Hero` entre la tarjeta de tarea y el formulario de edición, `AnimatedContainer` al completar una tarea, `AnimatedList` para inserciones/eliminaciones
+- **Deshacer eliminación**: `undoDelete()` en el provider restaura la última tarea eliminada desde el SnackBar
+- **Accesibilidad**: `Semantics` y tooltips en controles sin texto, objetivos táctiles mínimos de 48dp, feedback háptico al completar/eliminar tareas
+
 ## Servicios
 
 ### PermissionService (`lib/services/permission_service.dart`)
@@ -145,24 +161,27 @@ class Task {
 lib/
 ├── main.dart
 ├── router/
-│   └── app_router.dart          # go_router — 7 rutas + 404
+│   └── app_router.dart          # go_router — shell M3 + rutas + 404
 ├── theme/
-│   └── app_theme.dart           # Tema MD3 púrpura, claro/oscuro
+│   └── app_theme.dart           # Tema MD3, seed #6B5AED, Poppins
 ├── models/
 │   └── task.dart                # Modelo + enums + copyWith/toMap/fromMap
 ├── providers/
-│   └── task_provider.dart       # Riverpod StateNotifier + filtros
+│   ├── task_provider.dart       # Riverpod StateNotifier + filtros + tema
+│   └── onboarding_provider.dart # [NUEVO v3.1] Flag de onboarding
 ├── services/
 │   ├── permission_service.dart  # Gestión de permisos (micrófono, cámara)
 │   └── secure_storage_service.dart # Almacenamiento cifrado
 ├── screens/
-│   ├── home_screen.dart         # Lista + accesos a Voz y QR
+│   ├── onboarding_screen.dart   # [NUEVO v3.1] Intro de 4 páginas
+│   ├── home_screen.dart         # Lista + estados de carga + acceso a QR
 │   ├── task_form_screen.dart
 │   ├── statistics_screen.dart
 │   ├── settings_screen.dart
 │   ├── voice_screen.dart        # [NUEVO v2.0] Captura por voz
 │   └── qr_scan_screen.dart      # [NUEVO v2.0] Escáner QR
 └── widgets/
+    ├── scaffold_with_nav_bar.dart # [NUEVO v3.1] NavigationBar M3
     ├── task_card.dart
     ├── filter_chips.dart
     └── stats_card.dart

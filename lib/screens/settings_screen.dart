@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 
@@ -38,30 +37,44 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bool isDark = ref.watch(themeProvider);
+    final ThemeMode themeMode = ref.watch(themeProvider);
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Configuración'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Configuración')),
       body: ListView(
         children: [
           const SizedBox(height: 8),
           const _SectionHeader(title: 'Apariencia'),
-          SwitchListTile(
-            secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-            title: const Text('Tema oscuro'),
-            subtitle: Text(
-              isDark ? 'Modo oscuro activado' : 'Modo claro activado',
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.system,
+                  label: Text('Sistema'),
+                  icon: Icon(Icons.brightness_auto_outlined),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('Claro'),
+                  icon: Icon(Icons.light_mode_outlined),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('Oscuro'),
+                  icon: Icon(Icons.dark_mode_outlined),
+                ),
+              ],
+              selected: {themeMode},
+              onSelectionChanged: (Set<ThemeMode> selection) {
+                ref
+                    .read(themeProvider.notifier)
+                    .setThemeMode(selection.first);
+              },
             ),
-            value: isDark,
-            onChanged: (_) => ref.read(themeProvider.notifier).toggleTheme(),
           ),
+          const SizedBox(height: 8),
           const Divider(),
           const _SectionHeader(title: 'Acerca de'),
           const ListTile(
