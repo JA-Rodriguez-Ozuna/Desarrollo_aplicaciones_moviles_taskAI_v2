@@ -1,20 +1,24 @@
-# TaskAI v2.0 — Gestión de Tareas con IA On-Device
+# TaskAI v3.0 — Gestión de Tareas con IA y Persistencia en la Nube
 
 ![CI](https://github.com/JA-Rodriguez-Ozuna/Desarrollo_aplicaciones_moviles_taskAI_v2/actions/workflows/ci.yml/badge.svg)
 
-Aplicación móvil para gestión de tareas universitaria desarrollada con Flutter. La versión 2.0 incorpora funcionalidades de inteligencia artificial completamente on-device: captura de tareas por voz y escaneo de tareas desde códigos QR.
+TaskAI es una aplicación móvil de gestión de tareas desarrollada en Flutter. Combina captura de tareas por voz y escaneo QR mediante IA 100% on-device, con autenticación y persistencia en tiempo real vía Firebase (con caché local y sincronización offline), sobre una interfaz Material Design 3.
 
-## 📱 Capturas de pantalla
+## ✨ Funcionalidades principales
 
-| Lista de tareas | Crear tarea |
-|:---:|:---:|
-| ![Home](screenshots/HomeScreen.jpg) | ![Form](screenshots/TaskFormScreen.jpg) |
+- 🔐 **Autenticación** con Firebase Auth (registro e inicio de sesión)
+- ☁️ **Persistencia en la nube** con Cloud Firestore y sincronización en tiempo real
+- 📴 **Modo offline** con caché local (Hive) y sincronización automática al recuperar conexión
+- 🎙️ **Captura de tareas por voz**, reconocimiento de voz on-device sin enviar audio a servidores
+- 📷 **Escaneo de tareas por código QR** con Google ML Kit, 100% on-device
+- ✅ **Gestión completa de tareas**: crear, editar, completar, eliminar con opción de deshacer
+- 🔎 **Filtros** por estado (todas / pendientes / completadas) y por categoría (trabajo / personal / estudio / urgente)
+- 📊 **Panel de estadísticas** con progreso por categoría
+- 🎨 **Material Design 3**: NavigationBar, animaciones, splash screen nativo y modo claro/oscuro/sistema
+- 👋 **Onboarding** interactivo en el primer inicio de sesión
+- ♿ **Accesibilidad**: semántica, tooltips y objetivos táctiles de 48dp
 
-| Estadísticas | Configuración |
-|:---:|:---:|
-| ![Stats](screenshots/StatisticsScreen.jpg) | ![Settings](screenshots/SettingsScreen.jpg) |
-
-## Stack técnico
+## 🛠️ Stack tecnológico
 
 | Tecnología | Versión | Uso |
 |---|---|---|
@@ -22,8 +26,11 @@ Aplicación móvil para gestión de tareas universitaria desarrollada con Flutte
 | Dart | 3.12.1+ | Lenguaje |
 | flutter_riverpod | 2.6.x | Gestión de estado |
 | go_router | 15.x | Navegación |
-| uuid | 4.x | Generación de IDs |
-| intl | 0.20.x | Formateo de fechas |
+| firebase_core | 3.x | Inicialización de Firebase |
+| firebase_auth | 5.x | Autenticación de usuarios |
+| cloud_firestore | 5.x | Base de datos en tiempo real |
+| hive_flutter | 1.1.x | Caché local / modo offline |
+| connectivity_plus | 6.x | Detección de estado de red |
 | speech_to_text | 7.x | Reconocimiento de voz on-device |
 | google_mlkit_barcode_scanning | 0.12.x | Escaneo QR con ML Kit |
 | camera | 0.11.x | Acceso a cámara en tiempo real |
@@ -35,6 +42,43 @@ Aplicación móvil para gestión de tareas universitaria desarrollada con Flutte
 | shared_preferences | 2.x | Persistencia de preferencias locales (tema, onboarding) |
 | flutter_native_splash | 2.x | Splash screen nativo |
 | Material Design 3 | — | Sistema de diseño (seed color `#6B5AED`, tipografía Poppins) |
+| mockito / fake_cloud_firestore / firebase_auth_mocks | — | Tests unitarios con mocks de Firebase |
+
+## 📱 Capturas de pantalla
+
+Ver carpeta [`screenshots/`](screenshots/) para las capturas de pantalla actualizadas de la aplicación.
+
+## 📦 Instrucciones de instalación del APK
+
+```bash
+# 1. Generar el APK de release (requiere android/app/key.properties configurado localmente)
+flutter build apk --release
+
+# 2. El APK firmado se genera en:
+build/app/outputs/flutter-apk/app-release.apk
+
+# 3a. Instalar en un dispositivo Android conectado por ADB
+adb install build/app/outputs/flutter-apk/app-release.apk
+
+# 3b. Alternativamente, transferir el .apk al dispositivo manualmente
+#     y habilitar "Instalar apps de origen desconocido" antes de abrirlo
+```
+
+> `key.properties` y el keystore de firma **no** están incluidos en el repositorio por seguridad; deben generarse localmente.
+
+## 🌳 Estructura de branches
+
+El proyecto se desarrolló como una pila incremental de branches, ya integrados en `main`:
+
+```
+main
+ └─ feature/database        # Firebase Auth, Cloud Firestore, caché offline con Hive
+     └─ feature/ai-integration  # Captura de tareas por voz y escaneo QR con ML Kit
+         └─ feature/ui-redesign    # Rediseño Material Design 3, onboarding, animaciones
+             └─ feature/ci-cd-testing # Pipeline de CI/CD, tests unitarios, firma de release
+```
+
+`main` contiene actualmente el código final de TaskAI v3.0 con todas las funcionalidades integradas.
 
 ## Requisitos previos
 
@@ -42,13 +86,14 @@ Aplicación móvil para gestión de tareas universitaria desarrollada con Flutte
 - Dart 3.x
 - Android SDK 21+ (requerido por ML Kit)
 - Dispositivo Android físico o emulador con cámara y micrófono
+- Proyecto de Firebase configurado (`flutterfire configure`) para generar `lib/firebase_options.dart` localmente
 
-## Instrucciones de instalación
+## Ejecutar desde código fuente
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/JA-Rodriguez-Ozuna/Desarrollo_aplicaciones_moviles_taskAI.git
-cd Desarrollo_aplicaciones_moviles_taskAI/task_ai
+git clone https://github.com/JA-Rodriguez-Ozuna/Desarrollo_aplicaciones_moviles_taskAI_v2.git
+cd Desarrollo_aplicaciones_moviles_taskAI_v2
 
 # 2. Instalar dependencias
 flutter pub get
@@ -58,89 +103,52 @@ flutter devices
 
 # 4. Ejecutar la app
 flutter run
-
-# 5. Para construir APK de debug
-flutter build apk --debug
 ```
 
 ## Pantallas
 
-### v1.0 — Pantallas base
+#### LoginScreen / RegisterScreen
+Autenticación con Firebase Auth (correo y contraseña), con guardas de ruta que protegen las pantallas internas.
+
+#### OnboardingScreen (`/onboarding`)
+4 páginas introductorias con `PageView`, dots indicator y persistencia del flag `onboarding_completed` en `shared_preferences`; se muestra una sola vez tras el primer login.
 
 #### HomeScreen (`/`)
-Lista principal de tareas con:
-- Filtros por estado: Todas / Pendientes / Completadas
-- Filtros por categoría: Trabajo / Personal / Estudio / Urgente
+Lista principal de tareas sincronizada con Firestore en tiempo real, con caché offline:
+- Filtros por estado y por categoría
 - Tarjetas con prioridad, categoría y fecha límite
 - Swipe-to-delete con confirmación y opción "Deshacer"
-- Accesos directos a Voz y QR en el AppBar
-- FAB para crear nueva tarea manualmente
+- Accesos directos a Voz y QR
+- Estados de carga (shimmer) y de error con reintento
 
 #### TaskFormScreen (`/task/new` y `/task/edit/:id`)
-Formulario para crear y editar tareas:
-- Campo título (requerido, máx. 100 caracteres)
-- Campo descripción (opcional, máx. 500 caracteres)
-- DropdownButton para categoría
-- SegmentedButton MD3 para prioridad (Alta / Media / Baja)
-- Date picker y Time picker para fecha límite
-- Validaciones: título requerido, fecha no en el pasado
+Formulario para crear y editar tareas, con validaciones de título requerido y fecha no en el pasado.
+
+#### VoiceScreen (`/voice`)
+Captura de tareas mediante reconocimiento de voz on-device, sin envío de audio a servidores. Convierte el texto transcrito en título (primeras 6 palabras) y descripción (texto completo).
+
+#### QRScanScreen (`/qr-scan`)
+Escaneo de tareas desde códigos QR on-device con Google ML Kit. Formato esperado:
+```json
+{"title":"Entregar informe","description":"Grupo 3","category":"estudio","priority":"alta"}
+```
 
 #### StatisticsScreen (`/statistics`)
 Panel de estadísticas con contadores y progreso por categoría.
 
 #### SettingsScreen (`/settings`)
-Toggle de tema claro/oscuro y metainformación de la app.
-
-### v2.0 — Funcionalidades de IA
-
-#### VoiceScreen (`/voice`)
-Captura de tareas mediante reconocimiento de voz on-device:
-- Procesamiento 100% local — sin envío de audio a servidores
-- Animación de pulso mientras escucha
-- Transcripción en tiempo real con visualización del texto
-- Botón para detener y reiniciar la captura
-- Convierte automáticamente el texto transcrito en tarea:
-  - **Título**: primeras 6 palabras del texto
-  - **Descripción**: texto completo transcrito
-- Manejo de permiso de micrófono con feedback visual
-- Manejo de dispositivos sin soporte de voz
-
-#### QRScanScreen (`/qr-scan`)
-Escaneo de tareas desde códigos QR on-device:
-- Procesamiento 100% local con Google ML Kit
-- Visor en tiempo real con overlay de marco de escaneo
-- Formato de QR esperado (JSON):
-  ```json
-  {"title":"Entregar informe","description":"Grupo 3","category":"estudio","priority":"alta"}
-  ```
-- Vista previa de la tarea antes de confirmar la creación
-- El usuario confirma o cancela antes de guardar
-- Manejo de permiso de cámara con diálogo para ir a Configuración
-- Manejo robusto de QR con JSON inválido o campos faltantes
-
-### v3.1 — Rediseño Material 3
-
-- **Branding**: seed color `#6B5AED`, tipografía Poppins (Google Fonts) y splash screen nativo generado con `flutter_native_splash`
-- **OnboardingScreen** (`/onboarding`): 4 páginas introductorias con `PageView`, dots indicator y persistencia del flag `onboarding_completed` en `shared_preferences`; el router la muestra una sola vez tras el primer login
-- **Navegación**: `NavigationBar` de Material 3 con 4 destinos (Inicio, Estadísticas, Voz, Perfil) implementado con `StatefulShellRoute.indexedStack` de go_router; transiciones de página con `CustomTransitionPage` (fade, 300ms)
-- **Apariencia**: selector Sistema/Claro/Oscuro en Configuración (antes era un toggle binario)
-- **Estados de carga**: shimmer placeholders mientras se sincroniza Firestore, estado de error con reintento y `RefreshIndicator`
-- **Animaciones**: `Hero` entre la tarjeta de tarea y el formulario de edición, `AnimatedContainer` al completar una tarea, `AnimatedList` para inserciones/eliminaciones
-- **Deshacer eliminación**: `undoDelete()` en el provider restaura la última tarea eliminada desde el SnackBar
-- **Accesibilidad**: `Semantics` y tooltips en controles sin texto, objetivos táctiles mínimos de 48dp, feedback háptico al completar/eliminar tareas
+Selector de tema Sistema/Claro/Oscuro y cierre de sesión.
 
 ## Servicios
 
-### PermissionService (`lib/services/permission_service.dart`)
-Gestiona los permisos de micrófono y cámara:
-- Si se deniega: muestra SnackBar con explicación
-- Si se deniega permanentemente: muestra diálogo con botón a Configuración del sistema
-
-### SecureStorageService (`lib/services/secure_storage_service.dart`)
-Almacenamiento cifrado de metadatos de configuración del usuario:
-- API: `saveValue(key, value)`, `getValue(key)`, `deleteValue(key)`
-- Guarda timestamps de última captura por voz y último escaneo QR
-- No almacena tareas (siguen en memoria)
+| Servicio | Responsabilidad |
+|---|---|
+| `auth_service.dart` | Registro, inicio y cierre de sesión con Firebase Auth |
+| `firestore_service.dart` | CRUD y stream en tiempo real de tareas en Cloud Firestore |
+| `hive_service.dart` | Caché local de tareas para modo offline |
+| `sync_service.dart` | Sincronización entre Firestore y la caché local según conectividad |
+| `permission_service.dart` | Gestión de permisos de micrófono y cámara |
+| `secure_storage_service.dart` | Almacenamiento cifrado de metadatos de configuración |
 
 ## Modelo de datos
 
@@ -154,6 +162,7 @@ class Task {
   DateTime dueDate;
   bool isCompleted;
   DateTime createdAt;
+  String userId;         // Propietario de la tarea (Firebase Auth uid)
 }
 ```
 
@@ -163,27 +172,37 @@ class Task {
 lib/
 ├── main.dart
 ├── router/
-│   └── app_router.dart          # go_router — shell M3 + rutas + 404
+│   └── app_router.dart          # go_router — shell M3 + guardas de auth + rutas
 ├── theme/
 │   └── app_theme.dart           # Tema MD3, seed #6B5AED, Poppins
 ├── models/
-│   └── task.dart                # Modelo + enums + copyWith/toMap/fromMap
+│   └── task.dart
 ├── providers/
-│   ├── task_provider.dart       # Riverpod StateNotifier + filtros + tema
-│   └── onboarding_provider.dart # [NUEVO v3.1] Flag de onboarding
+│   ├── auth_provider.dart
+│   ├── connectivity_provider.dart
+│   ├── onboarding_provider.dart
+│   └── task_provider.dart
+├── repositories/
+│   └── task_repository.dart     # Orquesta Firestore + fallback a Hive
 ├── services/
-│   ├── permission_service.dart  # Gestión de permisos (micrófono, cámara)
-│   └── secure_storage_service.dart # Almacenamiento cifrado
+│   ├── auth_service.dart
+│   ├── firestore_service.dart
+│   ├── hive_service.dart
+│   ├── sync_service.dart
+│   ├── permission_service.dart
+│   └── secure_storage_service.dart
 ├── screens/
-│   ├── onboarding_screen.dart   # [NUEVO v3.1] Intro de 4 páginas
-│   ├── home_screen.dart         # Lista + estados de carga + acceso a QR
+│   ├── login_screen.dart
+│   ├── register_screen.dart
+│   ├── onboarding_screen.dart
+│   ├── home_screen.dart
 │   ├── task_form_screen.dart
 │   ├── statistics_screen.dart
 │   ├── settings_screen.dart
-│   ├── voice_screen.dart        # [NUEVO v2.0] Captura por voz
-│   └── qr_scan_screen.dart      # [NUEVO v2.0] Escáner QR
+│   ├── voice_screen.dart
+│   └── qr_scan_screen.dart
 └── widgets/
-    ├── scaffold_with_nav_bar.dart # [NUEVO v3.1] NavigationBar M3
+    ├── scaffold_with_nav_bar.dart
     ├── task_card.dart
     ├── filter_chips.dart
     └── stats_card.dart
@@ -196,8 +215,9 @@ lib/
 | minSdkVersion | 21 (requerido por ML Kit) |
 | compileSdkVersion | 34 |
 | Permisos | `RECORD_AUDIO`, `CAMERA` |
+| Firma de release | Configurada vía `key.properties` (no incluido en el repo) |
 
 ---
 
-Proyecto académico — Desarrollo de Aplicaciones Móviles  
+Proyecto académico — Desarrollo de Aplicaciones Móviles
 Universidad Iberoamericana
