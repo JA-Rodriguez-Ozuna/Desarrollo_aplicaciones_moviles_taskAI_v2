@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../widgets/banner_ad_widget.dart';
 import '../widgets/filter_chips.dart';
 import '../widgets/task_card.dart';
 
@@ -112,6 +113,7 @@ class HomeScreen extends ConsumerWidget {
               child: KeyedSubtree(key: ValueKey<String>(contentKey), child: content),
             ),
           ),
+          const BannerAdWidget(),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(

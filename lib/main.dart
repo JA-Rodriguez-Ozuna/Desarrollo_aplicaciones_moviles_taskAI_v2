@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'providers/task_provider.dart';
 import 'router/app_router.dart';
+import 'services/ad_service.dart';
 import 'services/hive_service.dart';
+import 'services/plan_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -16,6 +18,9 @@ Future<void> main() async {
 
   final HiveService hive = HiveService();
   await hive.init();
+
+  await AdService.initialize();
+  await PlanService.resetDailyCountersIfNeeded();
 
   runApp(const ProviderScope(child: TaskAIApp()));
 }
