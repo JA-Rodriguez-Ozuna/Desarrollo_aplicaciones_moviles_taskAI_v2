@@ -12,15 +12,31 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // En Android, google-services.json hace que el SDK nativo de Firebase se
+  // auto-inicialice antes de que corra este código Dart, así que Firebase.apps
+  // (el caché del lado Dart) sigue vacío aunque la app nativa "[DEFAULT]" ya
+  // exista. initializeApp() lanza duplicate-app en ese caso; es seguro
+  // ignorarlo porque la app nativa ya está configurada con las mismas
+  // opciones de firebase_options.dart.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+  }
 
   final HiveService hive = HiveService();
   await hive.init();
 
-  await AdService.initialize();
-  await PlanService.resetDailyCountersIfNeeded();
+  // Inicializaciones no críticas: nunca deben bloquear el arranque.
+  try {
+    await AdService.initialize();
+  } catch (_) {}
+
+  try {
+    await PlanService.resetDailyCountersIfNeeded();
+  } catch (_) {}
 
   runApp(const ProviderScope(child: TaskAIApp()));
 }

@@ -19,7 +19,9 @@ class AdService {
   RewardedAd? _rewardedAd;
 
   static Future<void> initialize() async {
-    await MobileAds.instance.initialize();
+    try {
+      await MobileAds.instance.initialize().timeout(const Duration(seconds: 3));
+    } catch (_) {}
   }
 
   BannerAd loadBannerAd({
