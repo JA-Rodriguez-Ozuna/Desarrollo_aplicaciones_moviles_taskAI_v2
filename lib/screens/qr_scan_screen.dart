@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
 import '../models/task.dart';
+import '../providers/plan_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/ad_service.dart';
 import '../services/permission_service.dart';
 import '../services/secure_storage_service.dart';
 
@@ -25,6 +27,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
   final BarcodeScanner _barcodeScanner = BarcodeScanner(
     formats: [BarcodeFormat.qrCode],
   );
+  final AdService _adService = AdService();
   bool _isProcessing = false;
   bool _cameraReady = false;
   bool _permissionDenied = false;
@@ -96,7 +99,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
       if (rawValue == null) return;
 
       await _cameraController?.stopImageStream();
-      if (mounted) _onQRDetected(rawValue);
+      if (mounted) await _onQRDetected(rawValue);
     } finally {
       _isProcessing = false;
     }
@@ -137,7 +140,56 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
     );
   }
 
-  void _onQRDetected(String rawValue) {
+  Future<void> _onQRDetected(String rawValue) async {
+    final bool canUse = await ref.read(planProvider.notifier).canUsePhoto();
+    if (!canUse) {
+      if (mounted) _showPhotoLimitDialog(rawValue);
+      return;
+    }
+    _handleDetectedValue(rawValue);
+  }
+
+  void _showPhotoLimitDialog(String rawValue) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Límite de escaneos alcanzado'),
+        content: const Text(
+          'Alcanzaste el límite de escaneos QR gratis por hoy.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _watchRewardedAdForPhoto(rawValue);
+            },
+            child: const Text('Ver anuncio para obtener 1 foto extra'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go('/settings');
+            },
+            child: const Text('Actualizar a Pro'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _watchRewardedAdForPhoto(String rawValue) async {
+    bool rewarded = false;
+    await _adService.showRewardedAd(() => rewarded = true);
+    if (!mounted) return;
+    if (rewarded) {
+      _handleDetectedValue(rawValue);
+    } else {
+      _resumeScanning();
+    }
+  }
+
+  void _handleDetectedValue(String rawValue) {
     try {
       final Map<String, dynamic> data =
           json.decode(rawValue) as Map<String, dynamic>;
@@ -215,6 +267,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
             dueDate: DateTime.now().add(const Duration(days: 1)),
           );
           ref.read(taskProvider.notifier).addTask(task);
+          await ref.read(planProvider.notifier).recordPhotoUsage();
           await SecureStorageService.saveValue(
             'last_qr_scan',
             DateTime.now().toIso8601String(),
@@ -239,6 +292,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
   void dispose() {
     _cameraController?.dispose();
     _barcodeScanner.close();
+    _adService.dispose();
     super.dispose();
   }
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../models/task.dart';
+import '../providers/plan_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/permission_service.dart';
 import '../services/secure_storage_service.dart';
@@ -66,9 +67,27 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   }
 
   Future<void> _startListening() async {
+    final bool canUse = await ref.read(planProvider.notifier).canUseVoice();
+    if (!canUse) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Alcanzaste el límite de 5 grabaciones de voz hoy.\n'
+              'Actualiza a Pro para uso ilimitado.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+
     final bool granted =
         await PermissionService.requestMicrophonePermission(context);
     if (!granted || !mounted) return;
+
+    await ref.read(planProvider.notifier).recordVoiceUsage();
 
     setState(() {
       _isListening = true;
