@@ -10,16 +10,20 @@ class GeminiService {
   static const String _fallbackModel = 'gemini-flash-latest';
 
   static const String _imagePrompt = '''
-Analiza esta imagen y extrae información sobre tareas universitarias.
-Responde ÚNICAMENTE con un objeto JSON válido sin markdown ni texto extra:
+Analiza esta imagen con detalle. Primero describe brevemente qué ves en la
+imagen en 1-2 líneas. Luego determina si contiene información sobre tareas,
+actividades pendientes, ejercicios, fechas de entrega o cualquier cosa que
+pueda convertirse en una tarea.
+Responde ÚNICAMENTE con este JSON sin markdown:
 {
-  "title": "título corto de la tarea máximo 60 caracteres",
+  "imageDescription": "descripción breve de lo que ves",
+  "hasTask": true o false,
+  "title": "título de la tarea si existe máximo 60 caracteres",
   "description": "descripción detallada",
   "category": "trabajo o personal o estudio o urgente",
   "priority": "alta o media o baja",
-  "hasTask": true o false
+  "suggestions": ["acción 1", "acción 2", "acción 3"]
 }
-Si no hay información de tarea responde con hasTask false.
 Responde en español.''';
 
   GenerativeModel _model(String modelName) =>
@@ -53,25 +57,44 @@ Responde en español.''';
   }
 
   /// Sends a voice transcription to Gemini and asks it to extract full task
-  /// fields (title, description, category, priority, due date hint) as raw
-  /// JSON text.
+  /// fields (title, description, category, priority, due date) as raw JSON
+  /// text. Includes today's date so Gemini can resolve relative dates like
+  /// "mañana" or "el viernes" into real yyyy-MM-dd values.
   Future<String?> analyzeVoiceText(String transcribedText) {
+    final DateTime today = DateTime.now();
     final String prompt = '''
+Hoy es ${today.day}/${today.month}/${today.year}, día de la semana: ${_getDayName(today.weekday)}.
 El usuario dictó esta nota para crear una tarea universitaria: $transcribedText
-Extrae la información y responde ÚNICAMENTE con JSON válido sin markdown:
+
+Extrae la información y responde ÚNICAMENTE con JSON sin markdown:
 {
   "title": "título corto máximo 60 caracteres",
   "description": "descripción completa",
   "category": "trabajo o personal o estudio o urgente",
   "priority": "alta o media o baja",
-  "dueDateHint": "descripción de fecha si se menciona ejemplo viernes o mañana o vacío"
+  "hasDueDate": true o false,
+  "dueDate": "fecha en formato yyyy-MM-dd si se menciona o null",
+  "dueDateHint": "descripción natural de la fecha ejemplo viernes o mañana"
 }
-Infiere categoría y prioridad del contexto.
-Si menciona examen o tarea académica usa estudio.
-Si menciona urgente o para hoy usa urgente con prioridad alta.
+Si menciona hoy calcula la fecha de hoy.
+Si menciona mañana calcula la fecha de mañana.
+Si menciona un día de la semana calcula la fecha del próximo occurrence.
 Responde en español.''';
 
     return _generateWithFallback(() => [Content.text(prompt)]);
+  }
+
+  String _getDayName(int weekday) {
+    const List<String> days = [
+      'lunes',
+      'martes',
+      'miércoles',
+      'jueves',
+      'viernes',
+      'sábado',
+      'domingo',
+    ];
+    return days[weekday - 1];
   }
 
   /// Simple connectivity check used during development to confirm the

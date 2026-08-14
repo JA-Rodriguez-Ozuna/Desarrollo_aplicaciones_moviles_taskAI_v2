@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../models/task.dart';
@@ -28,6 +29,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   bool _showForm = false;
   String _transcribedText = '';
   String _dueDateHint = '';
+  DateTime? _resolvedDueDate;
   String? _localeId;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -113,7 +115,19 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     if (mounted) setState(() => _isListening = false);
 
     final String text = _transcribedText.trim();
-    if (text.isNotEmpty) _analyzeWithAi(text);
+    if (text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se detectó audio. Intenta hablar más cerca del micrófono.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    _analyzeWithAi(text);
   }
 
   Future<void> _analyzeWithAi(String text) async {
@@ -123,7 +137,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       final Map<String, dynamic>? data = _parseJson(raw);
 
       if (data == null) {
-        _fallbackToRawText(text);
+        _fallbackInvalidJson(text);
         return;
       }
 
@@ -134,32 +148,81 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       _category = _parseCategory(data['category'] as String?);
       _priority = _parsePriority(data['priority'] as String?);
       _dueDateHint = (data['dueDateHint'] as String?)?.trim() ?? '';
+      _resolvedDueDate = _parseDueDate(data);
 
       if (mounted) setState(() => _showForm = true);
     } catch (e) {
       debugPrint('Gemini voice analysis error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No se pudo analizar con IA. Revisa el texto manualmente.',
-            ),
-          ),
-        );
-      }
-      _fallbackToRawText(text);
+      await _createTaskFromRawTextOnly(text);
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
   }
 
-  void _fallbackToRawText(String text) {
+  /// Gemini respondió pero el texto no es JSON parseable: deja solo el
+  /// título prellenado y que el usuario complete el resto a mano.
+  void _fallbackInvalidJson(String text) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo analizar. Revisa los campos y guarda manualmente.',
+          ),
+        ),
+      );
+    }
     _titleController.text = text.split(' ').take(6).join(' ');
-    _descriptionController.text = text;
+    _descriptionController.clear();
     _category = TaskCategory.personal;
     _priority = TaskPriority.media;
     _dueDateHint = '';
+    _resolvedDueDate = null;
     if (mounted) setState(() => _showForm = true);
+  }
+
+  /// La llamada a Gemini falló (típicamente sin conexión): no bloquea al
+  /// usuario, crea la tarea directamente con el texto dictado como título,
+  /// igual que el comportamiento previo a la integración con IA.
+  Future<void> _createTaskFromRawTextOnly(String text) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sin conexión. La tarea se creará solo con el título.'),
+        ),
+      );
+    }
+
+    final Task task = Task.create(
+      title: text.split(' ').take(6).join(' '),
+      description: text,
+      category: TaskCategory.personal,
+      priority: TaskPriority.media,
+      dueDate: DateTime.now().add(const Duration(days: 1)),
+    );
+
+    ref.read(taskProvider.notifier).addTask(task);
+    await SecureStorageService.saveValue(
+      'last_voice_capture',
+      DateTime.now().toIso8601String(),
+    );
+
+    if (!mounted) return;
+    context.go('/');
+  }
+
+  /// Convierte el dueDate (yyyy-MM-dd) que devuelve Gemini a DateTime real.
+  /// Si hasDueDate es false, o el string no parsea, no hay fecha detectada
+  /// — Task.dueDate no es nullable, así que _createTask cae al fallback de
+  /// mañana en ese caso, igual que antes de este fix.
+  DateTime? _parseDueDate(Map<String, dynamic> data) {
+    if (data['hasDueDate'] != true) return null;
+    final String? dueDateStr = data['dueDate'] as String?;
+    if (dueDateStr == null || dueDateStr.isEmpty) return null;
+    try {
+      return DateTime.parse(dueDateStr);
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, dynamic>? _parseJson(String? raw) {
@@ -209,7 +272,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       description: _descriptionController.text.trim(),
       category: _category,
       priority: _priority,
-      dueDate: DateTime.now().add(const Duration(days: 1)),
+      dueDate: _resolvedDueDate ?? DateTime.now().add(const Duration(days: 1)),
     );
 
     ref.read(taskProvider.notifier).addTask(task);
@@ -233,6 +296,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       _showForm = false;
       _transcribedText = '';
       _dueDateHint = '';
+      _resolvedDueDate = null;
       _titleController.clear();
       _descriptionController.clear();
       _category = TaskCategory.personal;
@@ -462,7 +526,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                 setState(() => _priority = selected.first);
               },
             ),
-            if (_dueDateHint.isNotEmpty) ...[
+            if (_resolvedDueDate != null || _dueDateHint.isNotEmpty) ...[
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -480,7 +544,11 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Fecha mencionada: $_dueDateHint',
+                        _resolvedDueDate != null
+                            ? 'Fecha detectada: '
+                                '${DateFormat('dd/MM/yyyy').format(_resolvedDueDate!)}'
+                                '${_dueDateHint.isNotEmpty ? ' ($_dueDateHint)' : ''}'
+                            : 'Fecha mencionada: $_dueDateHint',
                         style: theme.textTheme.bodySmall,
                       ),
                     ),
