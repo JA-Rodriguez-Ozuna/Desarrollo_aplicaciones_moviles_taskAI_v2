@@ -1,33 +1,30 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../services/gemini_service.dart';
 import '../services/permission_service.dart';
 import '../services/secure_storage_service.dart';
 
-class QRScanScreen extends ConsumerStatefulWidget {
-  const QRScanScreen({super.key});
+class CameraAiScreen extends ConsumerStatefulWidget {
+  const CameraAiScreen({super.key});
 
   @override
-  ConsumerState<QRScanScreen> createState() => _QRScanScreenState();
+  ConsumerState<CameraAiScreen> createState() => _CameraAiScreenState();
 }
 
-class _QRScanScreenState extends ConsumerState<QRScanScreen> {
+class _CameraAiScreenState extends ConsumerState<CameraAiScreen> {
   CameraController? _cameraController;
-  final BarcodeScanner _barcodeScanner = BarcodeScanner(
-    formats: [BarcodeFormat.qrCode],
-  );
-  bool _isProcessing = false;
+  final GeminiService _gemini = GeminiService();
   bool _cameraReady = false;
   bool _permissionDenied = false;
+  bool _isAnalyzing = false;
   String? _errorMessage;
 
   @override
@@ -62,16 +59,11 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
         camera,
         ResolutionPreset.high,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid
-            ? ImageFormatGroup.nv21
-            : ImageFormatGroup.bgra8888,
       );
 
       await _cameraController!.initialize();
       if (!mounted) return;
-
       setState(() => _cameraReady = true);
-      _cameraController!.startImageStream(_processFrame);
     } catch (e) {
       if (mounted) {
         setState(() => _errorMessage = 'Error al inicializar la cámara.');
@@ -80,112 +72,77 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
     }
   }
 
-  Future<void> _processFrame(CameraImage image) async {
-    if (_isProcessing) return;
-    _isProcessing = true;
-
-    try {
-      final InputImage? inputImage = _toInputImage(image);
-      if (inputImage == null) return;
-
-      final List<Barcode> barcodes =
-          await _barcodeScanner.processImage(inputImage);
-      if (barcodes.isEmpty) return;
-
-      final String? rawValue = barcodes.first.rawValue;
-      if (rawValue == null) return;
-
-      await _cameraController?.stopImageStream();
-      if (mounted) _onQRDetected(rawValue);
-    } finally {
-      _isProcessing = false;
+  Future<void> _takePhoto() async {
+    final CameraController? controller = _cameraController;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _isAnalyzing) {
+      return;
     }
-  }
 
-  InputImage? _toInputImage(CameraImage image) {
-    final int sensorOrientation =
-        _cameraController!.description.sensorOrientation;
-    final InputImageRotation rotation =
-        InputImageRotationValue.fromRawValue(sensorOrientation) ??
-            InputImageRotation.rotation0deg;
+    setState(() => _isAnalyzing = true);
+    try {
+      final XFile file = await controller.takePicture();
+      final Uint8List bytes = await file.readAsBytes();
+      final String? raw = await _gemini.analyzeImage(bytes);
+      final Map<String, dynamic>? data = _parseJson(raw);
 
-    final InputImageFormat? format =
-        InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null) return null;
-
-    final Uint8List bytes;
-    final int bytesPerRow = image.planes[0].bytesPerRow;
-
-    if (image.planes.length == 1) {
-      bytes = image.planes[0].bytes;
-    } else {
-      final WriteBuffer buffer = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        buffer.putUint8List(plane.bytes);
+      if (data == null) {
+        _showError('No se pudo interpretar la respuesta de la IA.');
+        return;
       }
-      bytes = buffer.done().buffer.asUint8List();
-    }
 
-    return InputImage.fromBytes(
-      bytes: bytes,
-      metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: rotation,
-        format: format,
-        bytesPerRow: bytesPerRow,
-      ),
-    );
-  }
-
-  void _onQRDetected(String rawValue) {
-    try {
-      final Map<String, dynamic> data =
-          json.decode(rawValue) as Map<String, dynamic>;
-
-      final String? title = data['title'] as String?;
-      if (title == null || title.isEmpty) {
-        _showError('QR inválido: falta el campo "title".');
-        _resumeScanning();
+      final bool hasTask = data['hasTask'] == true;
+      final String title = (data['title'] as String?)?.trim() ?? '';
+      if (!hasTask || title.isEmpty) {
+        _showError('No se encontró información de tarea en la imagen.');
         return;
       }
 
       final String description = (data['description'] as String?) ?? '';
-      final String categoryStr = (data['category'] as String?) ?? 'personal';
-      final String priorityStr = (data['priority'] as String?) ?? 'media';
+      final TaskCategory category =
+          _parseCategory(data['category'] as String?);
+      final TaskPriority priority =
+          _parsePriority(data['priority'] as String?);
 
-      final TaskCategory category = TaskCategory.values.firstWhere(
-        (c) => c.name == categoryStr,
+      if (mounted) _showPreview(title, description, category, priority);
+    } catch (e) {
+      _showError('No se pudo analizar la imagen. Intenta de nuevo.');
+      debugPrint('Gemini image analysis error: $e');
+    } finally {
+      if (mounted) setState(() => _isAnalyzing = false);
+    }
+  }
+
+  Map<String, dynamic>? _parseJson(String? raw) {
+    if (raw == null) return null;
+    String cleaned = raw.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned
+          .replaceFirst(RegExp(r'^```[a-zA-Z]*\n?'), '')
+          .replaceFirst(RegExp(r'```\s*$'), '')
+          .trim();
+    }
+    try {
+      return json.decode(cleaned) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TaskCategory _parseCategory(String? value) => TaskCategory.values.firstWhere(
+        (TaskCategory c) => c.name == value,
         orElse: () => TaskCategory.personal,
       );
-      final TaskPriority priority = TaskPriority.values.firstWhere(
-        (p) => p.name == priorityStr,
+
+  TaskPriority _parsePriority(String? value) => TaskPriority.values.firstWhere(
+        (TaskPriority p) => p.name == value,
         orElse: () => TaskPriority.media,
       );
 
-      _showPreview(title, description, category, priority);
-    } on FormatException {
-      _showError('El QR no contiene datos JSON válidos.');
-      _resumeScanning();
-    } on TypeError {
-      _showError('El QR tiene un formato incorrecto.');
-      _resumeScanning();
-    }
-  }
-
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
-  }
-
-  void _resumeScanning() {
-    if (_cameraController != null && _cameraReady && mounted) {
-      _cameraController!.startImageStream(_processFrame);
-    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showPreview(
@@ -216,7 +173,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
           );
           ref.read(taskProvider.notifier).addTask(task);
           await SecureStorageService.saveValue(
-            'last_qr_scan',
+            'last_camera_ai_scan',
             DateTime.now().toIso8601String(),
           );
           if (ctx.mounted) Navigator.pop(ctx);
@@ -227,10 +184,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
             context.go('/');
           }
         },
-        onCancel: () {
-          Navigator.pop(ctx);
-          _resumeScanning();
-        },
+        onCancel: () => Navigator.pop(ctx),
       ),
     );
   }
@@ -238,7 +192,6 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
   @override
   void dispose() {
     _cameraController?.dispose();
-    _barcodeScanner.close();
     super.dispose();
   }
 
@@ -261,7 +214,7 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: const Text('Escanear QR'),
+        title: const Text('Foto IA'),
         leading: IconButton(
           tooltip: 'Volver al inicio',
           icon: const Icon(Icons.arrow_back),
@@ -272,7 +225,19 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
         fit: StackFit.expand,
         children: [
           CameraPreview(_cameraController!),
-          const _ScanOverlay(),
+          const _InstructionOverlay(),
+          if (_isAnalyzing) const _AnalyzingOverlay(),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 110,
+            child: Center(
+              child: _CaptureButton(
+                enabled: !_isAnalyzing,
+                onPressed: _takePhoto,
+              ),
+            ),
+          ),
           const Positioned(
             bottom: 0,
             left: 0,
@@ -285,72 +250,89 @@ class _QRScanScreenState extends ConsumerState<QRScanScreen> {
   }
 }
 
-// ── Overlay ────────────────────────────────────────────────────────────────
+// ── Overlays ─────────────────────────────────────────────────────────────
 
-class _ScanOverlay extends StatelessWidget {
-  const _ScanOverlay();
+class _InstructionOverlay extends StatelessWidget {
+  const _InstructionOverlay();
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _OverlayPainter(),
-      child: const SizedBox.expand(),
+    return Positioned(
+      top: 100,
+      left: 24,
+      right: 24,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Text(
+          'Apunta al pizarrón o papel con tu tarea',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }
 
-class _OverlayPainter extends CustomPainter {
+class _AnalyzingOverlay extends StatelessWidget {
+  const _AnalyzingOverlay();
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final double cutout = size.width * 0.68;
-    final double left = (size.width - cutout) / 2;
-    final double top = (size.height - cutout) / 2;
-    final Rect frame = Rect.fromLTWH(left, top, cutout, cutout);
-
-    // Dark overlay with cutout
-    final Paint overlay = Paint()..color = Colors.black54;
-    final Path path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(RRect.fromRectAndRadius(frame, const Radius.circular(12)))
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(path, overlay);
-
-    // Corner brackets
-    const double arm = 28.0;
-    const double strokeW = 3.5;
-    final Paint corner = Paint()
-      ..color = Colors.white
-      ..strokeWidth = strokeW
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final List<List<Offset>> corners = [
-      [Offset(left, top + arm), Offset(left, top), Offset(left + arm, top)],
-      [
-        Offset(left + cutout - arm, top),
-        Offset(left + cutout, top),
-        Offset(left + cutout, top + arm),
-      ],
-      [
-        Offset(left, top + cutout - arm),
-        Offset(left, top + cutout),
-        Offset(left + arm, top + cutout),
-      ],
-      [
-        Offset(left + cutout - arm, top + cutout),
-        Offset(left + cutout, top + cutout),
-        Offset(left + cutout, top + cutout - arm),
-      ],
-    ];
-
-    for (final List<Offset> pts in corners) {
-      canvas.drawLine(pts[0], pts[1], corner);
-      canvas.drawLine(pts[1], pts[2], corner);
-    }
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black54,
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(height: 16),
+            Text(
+              'Analizando con IA...',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+class _CaptureButton extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _CaptureButton({required this.enabled, required this.onPressed});
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Tomar foto',
+      child: GestureDetector(
+        onTap: enabled ? onPressed : null,
+        child: Container(
+          width: 76,
+          height: 76,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(color: Colors.black38, blurRadius: 12, spreadRadius: 2),
+            ],
+          ),
+          child: Icon(
+            Icons.camera_alt,
+            color: enabled ? Colors.black87 : Colors.black26,
+            size: 32,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Bottom sheet preview ────────────────────────────────────────────────────
@@ -397,10 +379,10 @@ class _TaskPreviewSheet extends StatelessWidget {
             const SizedBox(height: 20),
             Row(
               children: [
-                Icon(Icons.qr_code_2, color: colors.primary),
+                Icon(Icons.auto_awesome, color: colors.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'QR detectado — revisar tarea',
+                  'Tarea detectada — revisar',
                   style: theme.textTheme.titleMedium
                       ?.copyWith(color: colors.primary),
                 ),
@@ -479,7 +461,7 @@ class _PermissionDeniedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Escanear QR')),
+      appBar: AppBar(title: const Text('Foto IA')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -496,7 +478,7 @@ class _PermissionDeniedView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Habilita el permiso de cámara en Configuración del sistema para escanear códigos QR.',
+                'Habilita el permiso de cámara en Configuración del sistema para usar Foto IA.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
@@ -521,7 +503,7 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Escanear QR')),
+      appBar: AppBar(title: const Text('Foto IA')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -585,7 +567,7 @@ class _HelpPanelState extends State<_HelpPanel> {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          '¿Cómo usar el escáner QR?',
+                          '¿Cómo usar Foto IA?',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -613,16 +595,14 @@ class _HelpPanelState extends State<_HelpPanel> {
                   children: const [
                     Divider(color: Colors.white24, height: 1),
                     SizedBox(height: 10),
-                    _QRHelpRow('Apunta la cámara al código QR de la tarea'),
-                    _QRHelpRow(
-                        'El QR debe contener la información en formato JSON'),
-                    _QRHelpRow(
-                      '{"title":"Mi tarea","description":"...","category":"estudio","priority":"alta"}',
-                      isCode: true,
-                    ),
-                    _QRHelpRow(
-                        'Categorías válidas: trabajo, personal, estudio, urgente'),
-                    _QRHelpRow('Prioridades válidas: alta, media, baja'),
+                    _HelpRow(
+                        'Apunta la cámara a un pizarrón, papel o libro con tu tarea'),
+                    _HelpRow('Toca el botón blanco para tomar la foto'),
+                    _HelpRow(
+                        'La IA analiza la imagen y extrae título, descripción, categoría y prioridad'),
+                    _HelpRow('Revisa la tarea sugerida antes de crearla'),
+                    _HelpRow(
+                        'Si la imagen no tiene una tarea clara, no se crea nada'),
                   ],
                 ),
               ),
@@ -634,11 +614,9 @@ class _HelpPanelState extends State<_HelpPanel> {
   }
 }
 
-class _QRHelpRow extends StatelessWidget {
+class _HelpRow extends StatelessWidget {
   final String text;
-  final bool isCode;
-
-  const _QRHelpRow(this.text, {this.isCode = false});
+  const _HelpRow(this.text);
 
   @override
   Widget build(BuildContext context) {
@@ -654,10 +632,9 @@ class _QRHelpRow extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: isCode ? const Color(0xFFFFD54F) : Colors.white70,
-                fontSize: isCode ? 10 : 12,
-                fontFamily: isCode ? 'monospace' : null,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
                 height: 1.4,
               ),
             ),

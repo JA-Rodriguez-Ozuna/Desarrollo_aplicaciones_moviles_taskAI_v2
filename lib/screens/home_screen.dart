@@ -76,11 +76,11 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(
-              Icons.qr_code_scanner,
-              semanticLabel: 'Escanear QR',
+              Icons.auto_awesome,
+              semanticLabel: 'Foto IA',
             ),
             onPressed: () => context.go('/qr-scan'),
-            tooltip: 'Escanear QR',
+            tooltip: 'Foto IA',
           ),
         ],
         bottom: PreferredSize(
