@@ -21,6 +21,7 @@ class NotificationService {
     channelDescription: _channelDescription,
     importance: Importance.high,
     priority: Priority.high,
+    icon: '@drawable/ic_notification',
   );
 
   static const NotificationDetails _notificationDetails =
