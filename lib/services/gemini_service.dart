@@ -15,8 +15,8 @@ class GeminiBusyException implements Exception {
 /// analysis features. Uses the app's existing Firebase project for auth —
 /// no API key to manage.
 class GeminiService {
-  static const String _primaryModel = 'gemini-2.5-flash';
-  static const String _fallbackModel = 'gemini-flash-latest';
+  static const String _primaryModel = 'gemini-2.0-flash';
+  static const String _fallbackModel = 'gemini-2.0-flash-lite';
 
   /// Intento inicial + hasta 2 reintentos automáticos.
   static const int _maxAttempts = 3;
