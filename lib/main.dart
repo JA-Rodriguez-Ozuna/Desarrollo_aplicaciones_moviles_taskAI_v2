@@ -5,17 +5,30 @@ import 'firebase_options.dart';
 import 'providers/task_provider.dart';
 import 'router/app_router.dart';
 import 'services/hive_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // En Android, google-services.json hace que el SDK nativo de Firebase se
+  // auto-inicialice antes de que corra este código Dart, así que
+  // initializeApp() lanza duplicate-app; es seguro ignorarlo porque la app
+  // nativa ya está configurada con las mismas opciones de firebase_options.dart.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+  }
 
   final HiveService hive = HiveService();
   await hive.init();
+
+  try {
+    await NotificationService.initialize();
+  } catch (_) {}
 
   runApp(const ProviderScope(child: TaskAIApp()));
 }
