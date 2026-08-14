@@ -153,7 +153,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       if (mounted) setState(() => _showForm = true);
     } catch (e) {
       debugPrint('Gemini voice analysis error: $e');
-      await _createTaskFromRawTextOnly(text);
+      await _createTaskFromRawTextOnly(text, error: e);
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
@@ -180,14 +180,19 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     if (mounted) setState(() => _showForm = true);
   }
 
-  /// La llamada a Gemini falló (típicamente sin conexión): no bloquea al
-  /// usuario, crea la tarea directamente con el texto dictado como título,
-  /// igual que el comportamiento previo a la integración con IA.
-  Future<void> _createTaskFromRawTextOnly(String text) async {
+  /// La llamada a Gemini falló: no bloquea al usuario, crea la tarea
+  /// directamente con el texto dictado como título, igual que el
+  /// comportamiento previo a la integración con IA.
+  ///
+  /// TEMPORAL: muestra el error exacto (en vez de un mensaje genérico de
+  /// "sin conexión") para diagnosticar qué está fallando realmente contra
+  /// Firebase AI Logic. Revertir a un mensaje amigable una vez resuelto.
+  Future<void> _createTaskFromRawTextOnly(String text, {Object? error}) async {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sin conexión. La tarea se creará solo con el título.'),
+        SnackBar(
+          content: Text('Error exacto: ${error?.toString() ?? "desconocido"}'),
+          duration: const Duration(seconds: 8),
         ),
       );
     }

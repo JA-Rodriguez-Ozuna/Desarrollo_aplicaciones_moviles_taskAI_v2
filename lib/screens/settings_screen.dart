@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../providers/plan_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/ad_service.dart';
+import '../services/plan_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -76,6 +79,13 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           const Divider(),
+          const _SectionHeader(title: 'Plan actual'),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: _PlanCard(),
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
           const _SectionHeader(title: 'Acerca de'),
           const ListTile(
             leading: Icon(Icons.info_outline),
@@ -130,6 +140,157 @@ class _SectionHeader extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: Theme.of(context).colorScheme.primary,
             ),
+      ),
+    );
+  }
+}
+
+class _PlanCard extends ConsumerStatefulWidget {
+  const _PlanCard();
+
+  @override
+  ConsumerState<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends ConsumerState<_PlanCard> {
+  final AdService _adService = AdService();
+
+  @override
+  void dispose() {
+    _adService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _upgradeToPro() async {
+    await ref.read(planProvider.notifier).upgradeToPro();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Bienvenido a Pro! Uso ilimitado activado.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _downgradeToFree() async {
+    await ref.read(planProvider.notifier).downgradeToFree();
+  }
+
+  Future<void> _watchRewardedAdForExtraPhoto() async {
+    bool rewarded = false;
+    await _adService.showRewardedAd(() => rewarded = true);
+    if (!mounted || !rewarded) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('¡Obtuviste 1 foto extra por hoy!')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final PlanState plan = ref.watch(planProvider);
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+
+    if (plan.isPro) {
+      return Card(
+        color: colors.primary,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.star_rounded,
+                      color: Colors.amber, size: 28),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Plan Pro ✓',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Uso ilimitado · Sin anuncios',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: colors.onPrimary),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _downgradeToFree,
+                  style:
+                      TextButton.styleFrom(foregroundColor: colors.onPrimary),
+                  child: const Text('Volver al plan gratuito'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final int photosUsed =
+        plan.photosUsedToday.clamp(0, PlanService.freePhotoLimit);
+    final int voicesUsed =
+        plan.voicesUsedToday.clamp(0, PlanService.freeVoiceLimit);
+
+    return Card(
+      color: colors.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Plan Gratuito', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '$photosUsed/${PlanService.freePhotoLimit} fotos · '
+              '$voicesUsed/${PlanService.freeVoiceLimit} voces usadas hoy',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            Text('Fotos', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: photosUsed / PlanService.freePhotoLimit,
+                backgroundColor: colors.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('Voces', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: voicesUsed / PlanService.freeVoiceLimit,
+                backgroundColor: colors.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _upgradeToPro,
+                child: const Text('Probar Pro — 7 días por \$1'),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _watchRewardedAdForExtraPhoto,
+                child: const Text('Ver anuncio para foto extra'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
