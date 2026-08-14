@@ -1,3 +1,4 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,13 @@ Future<void> main() async {
   } on FirebaseException catch (e) {
     if (e.code != 'duplicate-app') rethrow;
   }
+
+  // Firebase AI Logic exige App Check activo, incluso en desarrollo.
+  // El proveedor debug emite un token de depuración válido solo para
+  // este build; en producción debe cambiarse a Play Integrity.
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug,
+  );
 
   final HiveService hive = HiveService();
   await hive.init();
