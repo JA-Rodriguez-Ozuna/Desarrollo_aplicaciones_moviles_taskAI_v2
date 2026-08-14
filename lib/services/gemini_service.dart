@@ -2,12 +2,25 @@ import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
+/// Thrown when Gemini keeps failing with a transient/overload error after
+/// exhausting retries on both models — its [toString] is the user-facing
+/// message shown in the UI instead of the raw Firebase exception.
+class GeminiBusyException implements Exception {
+  @override
+  String toString() =>
+      'El servidor de IA está ocupado, intenta de nuevo en unos segundos.';
+}
+
 /// Wrapper around Firebase AI Logic (Gemini) for TaskAI's image and voice
 /// analysis features. Uses the app's existing Firebase project for auth —
 /// no API key to manage.
 class GeminiService {
   static const String _primaryModel = 'gemini-2.5-flash';
   static const String _fallbackModel = 'gemini-flash-latest';
+
+  /// Intento inicial + hasta 2 reintentos automáticos.
+  static const int _maxAttempts = 3;
+  static const Duration _retryDelay = Duration(seconds: 3);
 
   static const String _imagePrompt = '''
 Analiza esta imagen con detalle. Primero describe brevemente qué ves en la
@@ -35,26 +48,66 @@ Responde en español.''';
         appCheck: FirebaseAppCheck.instance,
       ).generativeModel(model: modelName);
 
+  /// Un error se considera transitorio (servidor sobrecargado) y elegible
+  /// para reintento si menciona un 500, "high demand" o "INTERNAL" — los
+  /// mensajes típicos de Gemini cuando está temporalmente saturado.
+  bool _isRetryable(Object error) {
+    final String message = error.toString().toLowerCase();
+    return message.contains('500') ||
+        message.contains('high demand') ||
+        message.contains('internal');
+  }
+
+  /// Llama a [modelName] con hasta [_maxAttempts] intentos, reintentando solo
+  /// los errores transitorios (ver [_isRetryable]) con una espera de
+  /// [_retryDelay] entre cada uno. Cualquier otro tipo de error falla en el
+  /// primer intento, sin esperar innecesariamente.
+  Future<String?> _generateWithRetry(
+    String modelName,
+    List<Content> Function() buildPrompt,
+  ) async {
+    late Object lastError;
+    for (int attempt = 1; attempt <= _maxAttempts; attempt++) {
+      try {
+        final GenerateContentResponse response =
+            await _model(modelName).generateContent(buildPrompt());
+        return response.text;
+      } catch (e) {
+        lastError = e;
+        debugPrint('Gemini $modelName — intento $attempt/$_maxAttempts falló: $e');
+        if (attempt < _maxAttempts && _isRetryable(e)) {
+          await Future.delayed(_retryDelay);
+          continue;
+        }
+        break;
+      }
+    }
+    throw lastError;
+  }
+
   /// Loggea el error real de ambos intentos (primario y fallback) — antes el
   /// catch del primario se descartaba en silencio y solo se veía el error
   /// del fallback, lo que ocultó el bug real de App Check por varias rondas.
+  ///
+  /// Si tras agotar los reintentos el error final sigue siendo transitorio
+  /// (servidor ocupado), se lanza [GeminiBusyException] con un mensaje
+  /// amigable en vez del error técnico crudo de Firebase.
   Future<String?> _generateWithFallback(
     List<Content> Function() buildPrompt,
   ) async {
     try {
-      final GenerateContentResponse response =
-          await _model(_primaryModel).generateContent(buildPrompt());
-      return response.text;
+      return await _generateWithRetry(_primaryModel, buildPrompt);
     } catch (primaryError) {
       debugPrint('Gemini primary model ($_primaryModel) error: $primaryError');
       try {
-        final GenerateContentResponse response =
-            await _model(_fallbackModel).generateContent(buildPrompt());
-        return response.text;
+        return await _generateWithRetry(_fallbackModel, buildPrompt);
       } catch (fallbackError) {
         debugPrint(
           'Gemini fallback model ($_fallbackModel) error: $fallbackError',
         );
+        if (_isRetryable(fallbackError)) {
+          throw GeminiBusyException();
+        }
         rethrow;
       }
     }

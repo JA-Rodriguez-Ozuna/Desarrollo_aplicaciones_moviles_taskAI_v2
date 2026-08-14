@@ -49,6 +49,8 @@ class NotificationService {
     final DateTime hourBefore =
         task.dueDate.subtract(const Duration(hours: 1));
 
+    bool anyScheduled = false;
+
     if (dayBefore.isAfter(now)) {
       await _schedule(
         id: _idFor(task.id, 0),
@@ -56,6 +58,9 @@ class NotificationService {
         body: '${task.title} vence mañana',
         scheduledDate: dayBefore,
       );
+      anyScheduled = true;
+    } else {
+      debugPrint('Notificación omitida — tiempo ya pasado: $dayBefore');
     }
 
     if (hourBefore.isAfter(now)) {
@@ -64,6 +69,19 @@ class NotificationService {
         title: '🚨 Tarea urgente',
         body: '${task.title} vence en 1 hora',
         scheduledDate: hourBefore,
+      );
+      anyScheduled = true;
+    } else {
+      debugPrint('Notificación omitida — tiempo ya pasado: $hourBefore');
+    }
+
+    // Ambos recordatorios ya pasaron pero la tarea todavía no vence: avisa
+    // de una vez en lugar de dejar la tarea sin ningún recordatorio.
+    if (!anyScheduled && task.dueDate.isAfter(now)) {
+      await _showImmediate(
+        id: _idFor(task.id, 2),
+        title: '⚡ Tarea próxima',
+        body: '${task.title} vence pronto',
       );
     }
   }
@@ -90,9 +108,22 @@ class NotificationService {
     }
   }
 
+  static Future<void> _showImmediate({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await _plugin.show(id, title, body, _notificationDetails);
+    } catch (e) {
+      debugPrint('[NotificationService] show error: $e');
+    }
+  }
+
   static Future<void> cancelTaskReminder(String taskId) async {
     await _plugin.cancel(_idFor(taskId, 0));
     await _plugin.cancel(_idFor(taskId, 1));
+    await _plugin.cancel(_idFor(taskId, 2));
   }
 
   static Future<void> cancelAllReminders() async {
