@@ -29,10 +29,19 @@ Future<void> main() async {
     if (e.code != 'duplicate-app') rethrow;
   }
 
-  // Firebase AI Logic exige App Check activo, incluso en desarrollo.
-  // El proveedor debug emite un token de depuración que hay que registrar
-  // manualmente en la consola de Firebase (App Check > Manage debug tokens);
+  // Firebase AI Logic exige App Check activo — en este proyecto,
+  // "Unenforced" en la consola desactiva la API entera en vez de
+  // solo relajar la seguridad, así que aquí SIEMPRE va enforced.
+  // El proveedor debug emite un secreto local que hay que registrar
+  // manualmente en Firebase Console > App Check > Manage debug tokens
+  // (leerlo desde shared_prefs > com.google.firebase.appcheck.debug.store
+  // en el dispositivo, el log nativo no siempre lo muestra en flutter run);
   // en release se usa Play Integrity, que no requiere ese paso manual.
+  //
+  // IMPORTANTE: activar App Check aquí no basta — GeminiService también
+  // tiene que pasarle FirebaseAppCheck.instance explícitamente a
+  // FirebaseAI.googleAI(), si no, firebase_ai no adjunta el header
+  // X-Firebase-AppCheck y el backend rechaza la petición.
   if (kDebugMode) {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,

@@ -1,6 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:firebase_ai/firebase_ai.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart';
 
 /// Wrapper around Firebase AI Logic (Gemini) for TaskAI's image and voice
 /// analysis features. Uses the app's existing Firebase project for auth —
@@ -26,9 +26,18 @@ Responde ÚNICAMENTE con este JSON sin markdown:
 }
 Responde en español.''';
 
-  GenerativeModel _model(String modelName) =>
-      FirebaseAI.googleAI().generativeModel(model: modelName);
+  // firebase_ai solo adjunta el header X-Firebase-AppCheck a las peticiones
+  // si se le pasa explícitamente la instancia de FirebaseAppCheck — activarlo
+  // globalmente en main.dart NO alcanza, FirebaseAI.googleAI() sin este
+  // parámetro manda las requests sin token y el backend las rechaza con
+  // "App Check token is invalid" aunque el proveedor esté bien configurado.
+  GenerativeModel _model(String modelName) => FirebaseAI.googleAI(
+        appCheck: FirebaseAppCheck.instance,
+      ).generativeModel(model: modelName);
 
+  /// Loggea el error real de ambos intentos (primario y fallback) — antes el
+  /// catch del primario se descartaba en silencio y solo se veía el error
+  /// del fallback, lo que ocultó el bug real de App Check por varias rondas.
   Future<String?> _generateWithFallback(
     List<Content> Function() buildPrompt,
   ) async {
@@ -36,10 +45,18 @@ Responde en español.''';
       final GenerateContentResponse response =
           await _model(_primaryModel).generateContent(buildPrompt());
       return response.text;
-    } catch (_) {
-      final GenerateContentResponse response =
-          await _model(_fallbackModel).generateContent(buildPrompt());
-      return response.text;
+    } catch (primaryError) {
+      debugPrint('Gemini primary model ($_primaryModel) error: $primaryError');
+      try {
+        final GenerateContentResponse response =
+            await _model(_fallbackModel).generateContent(buildPrompt());
+        return response.text;
+      } catch (fallbackError) {
+        debugPrint(
+          'Gemini fallback model ($_fallbackModel) error: $fallbackError',
+        );
+        rethrow;
+      }
     }
   }
 
