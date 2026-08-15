@@ -36,6 +36,17 @@ class NotificationService {
         InitializationSettings(android: androidSettings);
 
     await _plugin.initialize(settings);
+
+    // POST_NOTIFICATIONS es un permiso runtime en Android 13+ (declararlo
+    // en el Manifest no alcanza); sin pedirlo, las notificaciones se
+    // descartan en silencio aunque la programación de alarmas funcione
+    // bien — no lanza ninguna excepción, como los demás permisos.
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    } catch (_) {}
   }
 
   /// Both reminders for a task derive their id from taskId.hashCode, offset
@@ -122,12 +133,20 @@ class NotificationService {
   }
 
   static Future<void> cancelTaskReminder(String taskId) async {
-    await _plugin.cancel(_idFor(taskId, 0));
-    await _plugin.cancel(_idFor(taskId, 1));
-    await _plugin.cancel(_idFor(taskId, 2));
+    try {
+      await _plugin.cancel(_idFor(taskId, 0));
+      await _plugin.cancel(_idFor(taskId, 1));
+      await _plugin.cancel(_idFor(taskId, 2));
+    } catch (e) {
+      debugPrint('[NotificationService] cancel error: $e');
+    }
   }
 
   static Future<void> cancelAllReminders() async {
-    await _plugin.cancelAll();
+    try {
+      await _plugin.cancelAll();
+    } catch (e) {
+      debugPrint('[NotificationService] cancelAll error: $e');
+    }
   }
 }
