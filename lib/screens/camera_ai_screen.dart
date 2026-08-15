@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/task.dart';
+import '../providers/plan_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/gemini_service.dart';
 import '../services/permission_service.dart';
@@ -53,12 +54,22 @@ class _CameraAiScreenState extends ConsumerState<CameraAiScreen> {
     final Uint8List? bytes = _imageBytes;
     if (bytes == null || _isAnalyzing) return;
 
+    final bool allowed = await ref.read(planProvider.notifier).canUsePhoto();
+    if (!allowed) {
+      _showError(
+        'Alcanzaste el límite diario de fotos del plan gratuito. '
+        'Actualiza a Pro o intenta de nuevo mañana.',
+      );
+      return;
+    }
+
     setState(() {
       _isAnalyzing = true;
       _result = null;
     });
     try {
       final String? raw = await _gemini.analyzeImage(bytes);
+      await ref.read(planProvider.notifier).recordPhotoUsage();
       final Map<String, dynamic>? data = _parseJson(raw);
 
       if (data == null) {

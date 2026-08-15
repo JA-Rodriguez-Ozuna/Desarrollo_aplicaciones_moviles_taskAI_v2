@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../models/task.dart';
+import '../providers/plan_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/gemini_service.dart';
 import '../services/permission_service.dart';
@@ -131,9 +132,25 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   }
 
   Future<void> _analyzeWithAi(String text) async {
+    final bool allowed = await ref.read(planProvider.notifier).canUseVoice();
+    if (!allowed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Alcanzaste el límite diario de audios del plan gratuito. '
+              'Actualiza a Pro o intenta de nuevo mañana.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isAnalyzing = true);
     try {
       final String? raw = await _gemini.analyzeVoiceText(text);
+      await ref.read(planProvider.notifier).recordVoiceUsage();
       final Map<String, dynamic>? data = _parseJson(raw);
 
       if (data == null) {
