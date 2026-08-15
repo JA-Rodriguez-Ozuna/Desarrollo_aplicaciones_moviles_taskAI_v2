@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../widgets/banner_ad_widget.dart';
 import '../widgets/filter_chips.dart';
 import '../widgets/task_card.dart';
 
@@ -76,11 +77,11 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(
-              Icons.qr_code_scanner,
-              semanticLabel: 'Escanear QR',
+              Icons.auto_awesome,
+              semanticLabel: 'Foto IA',
             ),
             onPressed: () => context.go('/qr-scan'),
-            tooltip: 'Escanear QR',
+            tooltip: 'Foto IA',
           ),
         ],
         bottom: PreferredSize(
@@ -112,13 +113,24 @@ class HomeScreen extends ConsumerWidget {
               child: KeyedSubtree(key: ValueKey<String>(contentKey), child: content),
             ),
           ),
+          const BannerAdWidget(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/task/new'),
-        tooltip: 'Crear nueva tarea',
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva tarea'),
+      floatingActionButton: Padding(
+        // El banner de AdMob (AdSize.banner, 50dp) va al final del body en
+        // un Column, pero el FAB flota con margen fijo respecto al borde
+        // inferior del Scaffold sin saber que ese espacio ya lo ocupa el
+        // banner — y al ser una PlatformView nativa, su superficie puede
+        // quedar por encima del FAB aunque Flutter lo pinte después. Este
+        // padding levanta el FAB por encima del banner en vez de depender
+        // del orden de pintado.
+        padding: const EdgeInsets.only(bottom: 60),
+        child: FloatingActionButton.extended(
+          onPressed: () => context.go('/task/new'),
+          tooltip: 'Crear nueva tarea',
+          icon: const Icon(Icons.add),
+          label: const Text('Nueva tarea'),
+        ),
       ),
     );
   }

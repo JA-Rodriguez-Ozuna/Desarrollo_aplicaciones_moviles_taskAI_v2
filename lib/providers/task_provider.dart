@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
 import '../repositories/task_repository.dart';
+import '../services/notification_service.dart';
 import 'auth_provider.dart';
 
 enum StatusFilter { all, pending, completed }
@@ -148,6 +149,7 @@ class TaskNotifier extends StateNotifier<TaskState> {
   Future<void> addTask(Task task) async {
     try {
       await _repository.addTask(task.copyWith(userId: _userId));
+      await NotificationService.scheduleTaskReminder(task);
     } on TaskRepositoryException catch (e) {
       state = state.copyWith(writeError: e.message);
     }
@@ -168,6 +170,7 @@ class TaskNotifier extends StateNotifier<TaskState> {
     _lastDeleted = matches.isNotEmpty ? matches.first : null;
     try {
       await _repository.deleteTask(id, _userId);
+      await NotificationService.cancelTaskReminder(id);
     } on TaskRepositoryException catch (e) {
       state = state.copyWith(writeError: e.message);
     }
@@ -182,7 +185,11 @@ class TaskNotifier extends StateNotifier<TaskState> {
 
   Future<void> toggleComplete(String id) async {
     final Task task = state.tasks.firstWhere((t) => t.id == id);
-    await updateTask(task.copyWith(isCompleted: !task.isCompleted));
+    final bool newCompleted = !task.isCompleted;
+    await updateTask(task.copyWith(isCompleted: newCompleted));
+    if (newCompleted) {
+      await NotificationService.cancelTaskReminder(id);
+    }
   }
 
   void clearWriteError() => state = state.copyWith(clearWriteError: true);

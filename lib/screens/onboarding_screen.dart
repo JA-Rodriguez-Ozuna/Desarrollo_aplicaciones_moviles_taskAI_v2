@@ -2,43 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/onboarding_provider.dart';
 
-class _OnboardingPage {
-  final IconData icon;
+class _OnboardingSlide {
+  final String emoji;
   final String title;
-  final String description;
+  final String subtitle;
 
-  const _OnboardingPage({
-    required this.icon,
+  const _OnboardingSlide({
+    required this.emoji,
     required this.title,
-    required this.description,
+    required this.subtitle,
   });
 }
 
-const List<_OnboardingPage> _pages = [
-  _OnboardingPage(
-    icon: Icons.checklist_rounded,
+const List<_OnboardingSlide> _slides = <_OnboardingSlide>[
+  _OnboardingSlide(
+    emoji: '✨',
+    title: 'Bienvenido a TaskAI',
+    subtitle:
+        'Tu asistente inteligente para gestionar tareas universitarias',
+  ),
+  _OnboardingSlide(
+    emoji: '📋',
     title: 'Organiza tus tareas',
-    description:
-        'Crea, edita y filtra tus tareas por categoría y prioridad',
+    subtitle:
+        'Crea, edita y filtra tareas por categoría y prioridad. '
+        'Sincronización automática en la nube.',
   ),
-  _OnboardingPage(
-    icon: Icons.mic_rounded,
-    title: 'Captura por voz',
-    description: 'Dicta tus tareas y la app las crea automáticamente',
+  _OnboardingSlide(
+    emoji: '📸',
+    title: 'Captura con la cámara',
+    subtitle:
+        'Apunta al pizarrón o tus apuntes y la IA extrae automáticamente '
+        'todos los datos de la tarea.',
   ),
-  _OnboardingPage(
-    icon: Icons.qr_code_scanner_rounded,
-    title: 'Escanea y crea',
-    description:
-        'Escanea códigos QR para importar tareas al instante',
+  _OnboardingSlide(
+    emoji: '🎙️',
+    title: 'Dicta por voz',
+    subtitle:
+        'Habla en español y Gemini convierte tu nota en una tarea completa '
+        'con fecha y prioridad.',
   ),
-  _OnboardingPage(
-    icon: Icons.cloud_done_rounded,
-    title: 'Sincronización en la nube',
-    description:
-        'Tus tareas siempre disponibles en todos tus dispositivos',
+  _OnboardingSlide(
+    emoji: '🔔',
+    title: 'Nunca olvides una entrega',
+    subtitle:
+        'Recibe recordatorios 24 horas y 1 hora antes de que venza cada '
+        'tarea.',
   ),
 ];
+
+const Color _backgroundColor = Color(0xFF1A1040);
+const Color _primaryColor = Color(0xFF6B5AED);
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -70,90 +84,109 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isLastPage = _currentPage == _pages.length - 1;
+    final bool isLastPage = _currentPage == _slides.length - 1;
 
     return Scaffold(
+      backgroundColor: _backgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: _pages.length,
-                onPageChanged: (int index) =>
-                    setState(() => _currentPage = index),
-                itemBuilder: (BuildContext context, int index) {
-                  final _OnboardingPage page = _pages[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: Icon(
-                            page.icon,
-                            key: ValueKey<int>(index),
-                            size: 120,
-                            color: theme.colorScheme.primary,
-                          ),
+        child: Stack(
+          children: <Widget>[
+            PageView.builder(
+              controller: _controller,
+              itemCount: _slides.length,
+              onPageChanged: (int index) =>
+                  setState(() => _currentPage = index),
+              itemBuilder: (BuildContext context, int index) {
+                final _OnboardingSlide slide = _slides[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Text(
+                          slide.emoji,
+                          key: ValueKey<int>(index),
+                          style: const TextStyle(fontSize: 80),
                         ),
-                        const SizedBox(height: 32),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: Column(
-                            key: ValueKey<int>(index),
-                            children: [
-                              Text(
-                                page.title,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 32),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Column(
+                          key: ValueKey<int>(index),
+                          children: <Widget>[
+                            Text(
+                              slide.title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                page.description,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              slide.subtitle,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white70,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List<Widget>.generate(
-                _pages.length,
-                (int index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  height: 8,
-                  width: _currentPage == index ? 24 : 8,
-                  decoration: BoxDecoration(
-                    color: _currentPage == index
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(4),
+            if (!isLastPage)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: TextButton(
+                  onPressed: _finish,
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  child: const Text('Saltar'),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 96,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List<Widget>.generate(
+                  _slides.length,
+                  (int index) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    height: 8,
+                    width: _currentPage == index ? 24 : 8,
+                    decoration: BoxDecoration(
+                      color: _currentPage == index
+                          ? _primaryColor
+                          : Colors.white24,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: isLastPage ? _finish : _next,
-                  child: Text(isLastPage ? 'Comenzar' : 'Siguiente'),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FilledButton(
+                onPressed: isLastPage ? _finish : _next,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white,
                 ),
+                child: Text(isLastPage ? '¡Empezar!' : 'Siguiente'),
               ),
             ),
           ],

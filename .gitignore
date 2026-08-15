@@ -14,6 +14,10 @@ google-services.json
 GoogleService-Info.plist
 **/google-services.json
 # lib/firebase_options.dart (placeholder subido para CI)
+
+# ===== SECRETOS / ENV - NO SUBIR =====
+.env
+lib/services/gemini_service.dart
 # ========================================
 
 # Miscellaneous

@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/onboarding_provider.dart';
+import '../screens/camera_ai_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/onboarding_screen.dart';
-import '../screens/qr_scan_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/statistics_screen.dart';
@@ -141,7 +141,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/qr-scan',
-        pageBuilder: (_, state) => _fadePage(state, const QRScanScreen()),
+        pageBuilder: (_, state) => _fadePage(state, const CameraAiScreen()),
       ),
     ],
   );

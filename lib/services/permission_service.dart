@@ -17,7 +17,7 @@ class PermissionService {
       context,
       Permission.camera,
       'cámara',
-      'para escanear códigos QR',
+      'para crear tareas con Foto IA',
     );
   }
 
