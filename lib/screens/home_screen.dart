@@ -116,11 +116,21 @@ class HomeScreen extends ConsumerWidget {
           const BannerAdWidget(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/task/new'),
-        tooltip: 'Crear nueva tarea',
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva tarea'),
+      floatingActionButton: Padding(
+        // El banner de AdMob (AdSize.banner, 50dp) va al final del body en
+        // un Column, pero el FAB flota con margen fijo respecto al borde
+        // inferior del Scaffold sin saber que ese espacio ya lo ocupa el
+        // banner — y al ser una PlatformView nativa, su superficie puede
+        // quedar por encima del FAB aunque Flutter lo pinte después. Este
+        // padding levanta el FAB por encima del banner en vez de depender
+        // del orden de pintado.
+        padding: const EdgeInsets.only(bottom: 60),
+        child: FloatingActionButton.extended(
+          onPressed: () => context.go('/task/new'),
+          tooltip: 'Crear nueva tarea',
+          icon: const Icon(Icons.add),
+          label: const Text('Nueva tarea'),
+        ),
       ),
     );
   }

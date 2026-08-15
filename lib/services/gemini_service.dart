@@ -16,7 +16,7 @@ class GeminiBusyException implements Exception {
 /// no API key to manage.
 class GeminiService {
   static const String _primaryModel = 'gemini-2.0-flash';
-  static const String _fallbackModel = 'gemini-2.0-flash-lite';
+  static const String _fallbackModel = 'gemini-2.0-flash';
 
   /// Intento inicial + hasta 2 reintentos automáticos.
   static const int _maxAttempts = 3;
