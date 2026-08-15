@@ -51,8 +51,18 @@ Responde en español.''';
   /// Un error se considera transitorio (servidor sobrecargado) y elegible
   /// para reintento si menciona un 500, "high demand" o "INTERNAL" — los
   /// mensajes típicos de Gemini cuando está temporalmente saturado.
+  ///
+  /// Los errores de App Check nunca son retriables: reintentar no arregla
+  /// un token inválido o agotado, y solo consume cuota de App Check más
+  /// rápido hasta bloquear al usuario por completo.
   bool _isRetryable(Object error) {
     final String message = error.toString().toLowerCase();
+    if (message.contains('too many attempts') ||
+        message.contains('app_check') ||
+        message.contains('appcheck') ||
+        message.contains('firebase_app_check')) {
+      return false;
+    }
     return message.contains('500') ||
         message.contains('high demand') ||
         message.contains('internal');
